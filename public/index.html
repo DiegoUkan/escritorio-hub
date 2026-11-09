@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Escritório Hub</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='6' fill='%23f5a524'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Escritório</h1>
+    <span id="updated" class="muted"></span>
+    <nav>
+      <button class="tab active" data-view="control">Controle</button>
+      <button class="tab" data-view="settings">Configurações</button>
+    </nav>
+  </header>
+
+  <main id="view-control">
+    <section class="card wide" id="all">
+      <div class="row">
+        <h2>Tudo</h2>
+        <div class="actions">
+          <button data-all-on="true">Ligar</button>
+          <button data-all-on="false" class="ghost">Desligar</button>
+        </div>
+      </div>
+      <label>Brilho <input type="range" id="all-bri" min="1" max="255" value="128"></label>
+      <div class="row">
+        <label class="inline">Cor <input type="color" id="all-color" value="#ffb070"></label>
+        <div class="swatches" id="all-swatches"></div>
+      </div>
+      <p class="muted">Aplica em todos os WLED e, se ligado, nos dispositivos do OpenRGB.</p>
+    </section>
+
+    <div class="grid">
+      <section class="card" id="pc-card">
+        <h2>PC</h2>
+        <p class="big" id="pc-status">—</p>
+        <p class="muted" id="pc-detail"></p>
+      </section>
+
+      <section class="card" id="speaker-card">
+        <h2>Caixa de som</h2>
+        <p class="big" id="speaker-status">—</p>
+        <div class="seg-buttons" id="speaker-mode">
+          <button data-mode="auto">Automático</button>
+          <button data-mode="on">Ligada</button>
+          <button data-mode="off">Desligada</button>
+        </div>
+        <p class="muted" id="speaker-detail">Automático: liga junto com o PC.</p>
+      </section>
+    </div>
+
+    <div class="grid" id="wled-list"></div>
+
+    <section class="card wide" id="openrgb-card">
+      <div class="row">
+        <h2>OpenRGB (PC)</h2>
+        <span class="pill" id="openrgb-pill">—</span>
+      </div>
+      <div id="openrgb-body"></div>
+    </section>
+  </main>
+
+  <main id="view-settings" hidden>
+    <section class="card wide">
+      <h2>Dispositivos WLED</h2>
+      <div id="cfg-wled"></div>
+      <button id="cfg-wled-add" class="ghost">+ Adicionar WLED</button>
+    </section>
+    <div class="grid">
+      <section class="card">
+        <h2>PC</h2>
+        <label>Nome <input id="cfg-pc-name"></label>
+        <label>IP do PC <input id="cfg-pc-host" placeholder="192.168.1.50"></label>
+        <label>Porta TCP <input id="cfg-pc-port" type="number" min="1" max="65535"></label>
+        <p class="muted">O hub considera o PC ligado quando essa porta responde. 445 costuma funcionar no Windows.</p>
+      </section>
+      <section class="card">
+        <h2>Caixa de som</h2>
+        <label class="inline"><input type="checkbox" id="cfg-sp-enabled"> Controlar a caixa de som</label>
+        <label>WLED com o relé <select id="cfg-sp-wled"></select></label>
+        <label>Número do relé <input id="cfg-sp-relay" type="number" min="0" max="7"></label>
+        <label>Desligar após (segundos sem PC) <input id="cfg-sp-delay" type="number" min="0"></label>
+      </section>
+      <section class="card">
+        <h2>OpenRGB</h2>
+        <label class="inline"><input type="checkbox" id="cfg-orgb-enabled"> Conectar ao OpenRGB</label>
+        <label>IP do PC <input id="cfg-orgb-host" placeholder="192.168.1.50"></label>
+        <label>Porta <input id="cfg-orgb-port" type="number"></label>
+        <p class="muted">No OpenRGB: aba "SDK Server" → Start Server (porta 6742).</p>
+      </section>
+      <section class="card">
+        <h2>Geral</h2>
+        <label>Atualizar a cada (segundos) <input id="cfg-poll" type="number" min="1" max="300"></label>
+      </section>
+    </div>
+    <div class="save-bar">
+      <span id="cfg-msg" class="muted"></span>
+      <button id="cfg-save">Salvar</button>
+    </div>
+  </main>
+
+  <template id="tpl-wled">
+    <section class="card wled">
+      <div class="row">
+        <h2 class="name"></h2>
+        <label class="switch"><input type="checkbox" class="power"><span></span></label>
+      </div>
+      <p class="muted meta"></p>
+      <label>Brilho <input type="range" class="bri" min="1" max="255"></label>
+      <label class="inline">Cor <input type="color" class="color"></label>
+      <label>Efeito <select class="fx"></select></label>
+      <label>Paleta <select class="pal"></select></label>
+      <label>Velocidade <input type="range" class="sx" min="0" max="255"></label>
+      <p class="error"></p>
+    </section>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>

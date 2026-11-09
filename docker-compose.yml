@@ -1,0 +1,29 @@
+# Para instalar no CasaOS: App Store -> "+" (Custom Install) -> Import -> cole este arquivo.
+name: escritorio-hub
+services:
+  escritorio-hub:
+    image: ghcr.io/diegoukan/escritorio-hub:latest
+    container_name: escritorio-hub
+    restart: unless-stopped
+    # rede do host: o hub enxerga a rede de casa (nomes .local, PC, ESPs) como o servidor enxerga
+    network_mode: host
+    environment:
+      PORT: "8090"
+      TZ: America/Sao_Paulo
+    volumes:
+      - /DATA/AppData/escritorio-hub:/data
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: escritorio-hub
+  author: DiegoUkan
+  category: Utilities
+  title:
+    en_us: Escritório Hub
+  tagline:
+    en_us: LEDs, PC e caixa de som do escritório
+  description:
+    en_us: Central de controle do escritório (WLED, OpenRGB e caixa de som).
+  port_map: "8090"
+  index: /
