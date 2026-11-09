@@ -3,6 +3,7 @@
 Central de controle do escritório, rodando como container no servidor de casa (CasaOS).
 
 - **LEDs (WLED):** liga/desliga, brilho, as 3 cores, efeito, paleta e os ajustes de cada efeito (velocidade, intensidade e os outros que o efeito tiver), em cada ESP32 com WLED ou em todos ao mesmo tempo.
+- **Moldura inteira ou 4 lados:** um botão no Controle junta os 4 lados da moldura num segmento só, para efeitos como o Rainbow darem a volta na tela toda, ou separa de novo (cada lado roda o efeito).
 - **Prévia ao vivo:** a moldura do monitor (ou a fita) é desenhada na página com as cores reais dos LEDs, quadro a quadro, e a cor de destaque da página acompanha os LEDs.
 - **Biblioteca:** todos os efeitos e paletas do WLED, com a prévia das cores de cada paleta, busca, e favoritos fixos no topo (o restante vem depois, em ordem alfabética).
 - **PC:** detecta se o PC gamer está ligado (abre uma conexão TCP numa porta do Windows, por padrão a 445).
@@ -52,6 +53,7 @@ Os favoritos são marcados na estrela de cada efeito ou paleta e ficam salvos no
 | POST | `/api/all` | `{ on, bri, color: [r,g,b], slot, fx, pal, sx, ix, c1, c2, c3, ps }` para todos os WLED (+ cor no OpenRGB quando `slot` é 0) |
 | POST | `/api/wled/:id` | mesmo corpo, para um WLED |
 | GET | `/api/wled/:id/lists` | efeitos (com os ajustes e cores que cada um usa) e paletas (com as cores); `?refresh=1` lê de novo do WLED |
+| POST | `/api/wled/:id/frame` | `{ mode: "full" \| "sides" }`: junta os 4 lados da moldura num segmento só (o efeito dá a volta na tela) ou separa de novo. A escolha fica salva e o hub reaplica quando o WLED reinicia |
 | GET | `/api/wled/:id/live` | prévia ao vivo em Server-Sent Events: cada mensagem é a cor de cada LED em hex (`rrggbb` por LED) |
 | POST | `/api/favorites` | `{ kind: "effects" \| "palettes", name, fav: true \| false }` |
 | POST | `/api/speaker` | `{ mode: "auto" \| "on" \| "off" }` |

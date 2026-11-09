@@ -109,6 +109,26 @@ test('hub controla WLED, caixa de som, listas, favoritos e prévia ao vivo', asy
   const bad = await fetch(base + '/api/favorites', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"kind":"x"}' });
   assert.equal(bad.status, 400);
 
+  // moldura inteira: um segmento só, com o efeito do segmento principal
+  await post('/api/wled/monitor', { fx: 9, pal: 11 });
+  let dev = await post('/api/wled/monitor/frame', { mode: 'full' });
+  assert.equal(dev.frameMode, 'full');
+  assert.deepEqual(wled.state.seg.map((s) => [s.start, s.stop, s.fx]), [[0, 98, 9]]);
+  assert.equal((await get('/api/status')).wled[0].frameMode, 'full');
+  // ao salvar os Ajustes, a escolha da moldura continua
+  const cfgNow = await get('/api/config');
+  await fetch(base + '/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wled: cfgNow.wled.map(({ segmentMode, ...d }) => d) }) });
+  assert.equal((await get('/api/config')).wled[0].segmentMode, 'full');
+  // o ESP reinicia com o preset de boot (4 lados): o hub junta de novo sozinho
+  wled.reboot();
+  await waitFor(() => wled.state.seg.length === 1);
+  // 4 lados de novo, cada lado com o mesmo efeito
+  await post('/api/wled/monitor', { fx: 9 }); // o preset de boot trouxe outro efeito
+  dev = await post('/api/wled/monitor/frame', { mode: 'sides' });
+  assert.equal(dev.frameMode, 'sides');
+  assert.deepEqual(wled.state.seg.map((s) => [s.n, s.start, s.stop, s.fx]), [['Base', 0, 34, 9], ['Direita', 34, 49, 9], ['Topo', 49, 83, 9], ['Esquerda', 83, 98, 9]]);
+  assert.equal((await fetch(base + '/api/wled/monitor/frame', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"mode":"x"}' })).status, 400);
+
   // prévia ao vivo via SSE (98 LEDs x 3 bytes = 588 dígitos hex)
   const sse = await firstSseData(`${base}/api/wled/monitor/live`);
   assert.match(sse.type, /text\/event-stream/);

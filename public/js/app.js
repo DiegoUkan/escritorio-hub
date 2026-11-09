@@ -303,6 +303,33 @@ function renderStage(dev, meta) {
   $('#screen-bri').textContent = dev.online ? `Brilho ${Math.round((dev.bri / 255) * 100)}%` : '';
 }
 
+// Moldura inteira (um segmento só, o efeito dá a volta na tela) ou 4 lados (cada lado roda o efeito)
+function renderFrameSwitch(dev) {
+  const el = $('#frame-switch');
+  const show = S.selected !== ALL && !!dev?.online && dev.layout?.type === 'frame';
+  el.hidden = !show;
+  if (!show || el.classList.contains('busy')) return;
+  const full = dev.frameMode === 'full';
+  $('#frame-full').checked = full;
+  $('#frame-sub').textContent = full ? 'o efeito dá a volta na tela toda' : dev.frameMode === 'sides' ? 'cada lado repete o efeito' : 'divisão personalizada no WLED';
+}
+$('#frame-full').addEventListener('change', async (e) => {
+  const dev = current();
+  if (!dev) return;
+  const mode = e.target.checked ? 'full' : 'sides';
+  const el = $('#frame-switch');
+  el.classList.add('busy');
+  try {
+    Object.assign(dev, await api('POST', `/api/wled/${encodeURIComponent(dev.id)}/frame`, { mode }));
+    toast(mode === 'full' ? 'Moldura inteira: o efeito dá a volta na tela' : '4 lados: cada lado roda o efeito');
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    el.classList.remove('busy');
+    render();
+  }
+});
+
 function renderControls(dev, meta) {
   const anyOn = S.selected === ALL ? devices().some((d) => d.on) : !!dev?.on;
   const power = $('#power');
@@ -315,6 +342,7 @@ function renderControls(dev, meta) {
   }
   briEl.disabled = !dev?.online;
   setRangeFill(briEl);
+  renderFrameSwitch(dev);
 
   // cores que o efeito usa (Principal, Fundo, Extra...)
   const slots = meta?.colors?.length ? meta.colors : [{ slot: 0, label: 'Principal' }];

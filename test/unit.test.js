@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { DEFAULT_CONFIG, mergeConfig, normalizeConfig, validateConfig } from '../src/config.js';
-import { buildState, relayPayload, summarize } from '../src/wled.js';
+import { buildState, frameModeOf, frameModeState, frameSides, relayPayload, summarize } from '../src/wled.js';
 import { buildEffects, buildPalettes, paletteStops, parseFxData } from '../src/wled-lists.js';
 import { decodeLiveFrame } from '../src/live.js';
 import { SpeakerLogic } from '../src/speaker.js';
@@ -47,6 +47,31 @@ test('buildState aplica cor em todos os segmentos e respeita o slot', () => {
   assert.deepEqual(buildState({ fx: 9 }).seg[0], { id: 0, fx: 9, fxdef: true });
   assert.deepEqual(buildState({ c3: 99, ix: 10 }).seg[0], { id: 0, ix: 10, c3: 31 });
   assert.deepEqual(buildState({ on: false }), { on: false });
+});
+
+test('moldura inteira ou 4 lados: segmentos do WLED', () => {
+  const layout = { type: 'frame', bottom: 34, right: 15, top: 34, left: 15 };
+  const sides = frameSides(layout, 98);
+  assert.deepEqual(sides.map((s) => [s.name, s.start, s.stop]), [['Base', 0, 34], ['Direita', 34, 49], ['Topo', 49, 83], ['Esquerda', 83, 98]]);
+  assert.deepEqual(frameSides({ ...layout, right: 0 }, 98).map((s) => s.name), ['Base', 'Topo', 'Esquerda'], 'lado sem LEDs não vira segmento');
+  assert.equal(frameModeOf(sides, layout, 98), 'sides');
+  assert.equal(frameModeOf([{ id: 0, start: 0, stop: 98 }], layout, 98), 'full');
+  assert.equal(frameModeOf([{ id: 0, start: 0, stop: 50 }, { id: 1, start: 50, stop: 98 }], layout, 98), 'custom');
+
+  const look = { on: true, bri: 255, col: [[1, 2, 3], [0, 0, 0], [0, 0, 0]], fx: 9, sx: 200, ix: 90, pal: 11, c1: 1, c2: 2, c3: 3 };
+  const fourSides = sides.map((s, id) => ({ id, start: s.start, stop: s.stop, ...look }));
+  const full = frameModeState('full', layout, 98, fourSides);
+  assert.deepEqual(full.seg[0], { id: 0, start: 0, stop: 98, n: 'Moldura', sel: true }, 'o segmento 0 cresce e mantém o efeito');
+  assert.deepEqual(full.seg.slice(1), [{ id: 1, stop: 0 }, { id: 2, stop: 0 }, { id: 3, stop: 0 }], 'os outros lados são apagados');
+
+  const back = frameModeState('sides', layout, 98, [{ id: 0, start: 0, stop: 98, ...look }]);
+  assert.equal(back.seg.length, 4);
+  assert.deepEqual(back.seg.map((s) => [s.n, s.start, s.stop]), [['Base', 0, 34], ['Direita', 34, 49], ['Topo', 49, 83], ['Esquerda', 83, 98]]);
+  for (const s of back.seg.slice(1)) {
+    assert.equal(s.fx, 9, 'lados novos copiam o efeito do principal');
+    assert.equal(s.pal, 11);
+    assert.deepEqual(s.col, look.col);
+  }
 });
 
 test('relayPayload do Multi Relay', () => {

@@ -4,7 +4,7 @@
 name: escritorio-hub
 services:
   escritorio-hub:
-    image: ghcr.io/diegoukan/escritorio-hub:0.2.0
+    image: ghcr.io/diegoukan/escritorio-hub:0.3.0
     container_name: escritorio-hub
     restart: unless-stopped
     # rede do host: o hub enxerga a rede de casa (nomes .local, PC, ESPs) como o servidor enxerga

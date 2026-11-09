@@ -8,6 +8,8 @@ export const DEFAULT_CONFIG = {
   //   frame = moldura de monitor começando no canto inferior esquerdo:
   //           base (esq->dir), lateral direita (sobe), topo (dir->esq), lateral esquerda (desce)
   //   strip = fita reta
+  // segmentMode (só moldura, opcional): full = um segmento com a moldura inteira, sides = um por lado.
+  //   Escolhido no Controle; o hub reaplica quando o WLED liga ou reinicia.
   wled: [
     { id: 'monitor', name: 'Monitor', host: '192.168.1.251', layout: { type: 'frame', bottom: 34, right: 15, top: 34, left: 15 } },
   ],
@@ -80,6 +82,8 @@ export function validateConfig(cfg) {
           if (!Number.isInteger(n) || n < 0 || n > 1000) errors.push(`wled[${i}].layout.${side} inválido`);
         }
       }
+      // divisão da moldura escolhida no Controle: full (moldura inteira) ou sides (4 lados)
+      if (d?.segmentMode != null && !['full', 'sides'].includes(d.segmentMode)) errors.push(`wled[${i}].segmentMode deve ser full ou sides`);
     });
   }
   if (!['auto', 'on', 'off'].includes(cfg.speaker?.mode)) errors.push('speaker.mode deve ser auto, on ou off');

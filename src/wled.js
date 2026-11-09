@@ -59,6 +59,49 @@ export function buildState(cmd, segIds = [0]) {
   return state;
 }
 
+// ---------- Divisão da moldura em segmentos ----------
+// "full": um segmento só, com a moldura inteira (o efeito dá a volta na tela toda).
+// "sides": um segmento por lado (base, direita, topo, esquerda), e cada lado roda o efeito inteiro.
+export const SIDE_NAMES = ['Base', 'Direita', 'Topo', 'Esquerda'];
+const FRAME_ORDER = ['bottom', 'right', 'top', 'left'];
+
+export function frameSides(layout, total) {
+  const out = [];
+  let start = 0;
+  FRAME_ORDER.forEach((side, i) => {
+    const n = Math.max(0, Number(layout?.[side]) || 0);
+    const stop = Math.min(start + n, total);
+    if (stop > start) out.push({ name: SIDE_NAMES[i], start, stop });
+    start += n;
+  });
+  return out;
+}
+
+// Qual divisão o WLED está usando agora: full, sides ou custom (qualquer outra)
+export function frameModeOf(segments, layout, total) {
+  if (!segments?.length || !total) return 'custom';
+  if (segments.length === 1 && segments[0].start === 0 && segments[0].stop === total) return 'full';
+  const sides = frameSides(layout, total);
+  const same = sides.length === segments.length && sides.every((s, i) => segments[i].start === s.start && segments[i].stop === s.stop);
+  return same ? 'sides' : 'custom';
+}
+
+// O que passa do segmento principal para os segmentos novos, para todos os lados ficarem iguais
+const LOOK_KEYS = ['on', 'bri', 'col', 'fx', 'sx', 'ix', 'pal', 'c1', 'c2', 'c3', 'o1', 'o2', 'o3'];
+
+// JSON do WLED que redivide a moldura. current = state.seg do WLED agora.
+export function frameModeState(mode, layout, total, current = []) {
+  const wanted = mode === 'full' ? [{ name: 'Moldura', start: 0, stop: total }] : frameSides(layout, total);
+  const main = current[0] ?? {};
+  const look = {};
+  for (const k of LOOK_KEYS) if (main[k] !== undefined) look[k] = structuredClone(main[k]);
+  const seg = wanted.map((w, id) => ({ id, start: w.start, stop: w.stop, n: w.name, sel: true, ...(id === 0 ? {} : look) }));
+  // segmentos que sobraram são apagados (no WLED, stop 0 remove o segmento)
+  const lastId = current.reduce((m, s, i) => Math.max(m, s.id ?? i), -1);
+  for (let id = wanted.length; id <= lastId; id++) seg.push({ id, stop: 0 });
+  return { seg };
+}
+
 // Resumo do estado que a página precisa
 export function summarize(si) {
   const { info = {}, state = {} } = si ?? {};
@@ -89,5 +132,6 @@ export function summarize(si) {
     deviceName: info.name ?? '',
     live: !!info.live,
     signal: info.wifi?.signal ?? null,
+    uptime: Number.isFinite(info.uptime) ? info.uptime : null,
   };
 }
