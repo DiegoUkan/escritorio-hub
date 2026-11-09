@@ -1,6 +1,6 @@
 {
   "name": "escritorio-hub",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Central de controle do escritório: LEDs (WLED + OpenRGB), PC e caixa de som",
   "type": "module",
   "main": "src/server.js",
