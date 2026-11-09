@@ -21,6 +21,7 @@
     <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
     <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
     <symbol id="i-speaker" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="14" r="4"/><path d="M12 6h.01"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
     <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H4"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
@@ -40,6 +41,7 @@
     <div class="status-chips" id="chips"></div>
     <nav class="nav" aria-label="Seções">
       <button class="nav-btn active" data-view="control"><svg><use href="#i-home"/></svg><span>Controle</span></button>
+      <button class="nav-btn" data-view="guide"><svg><use href="#i-book"/></svg><span>Tutorial</span></button>
       <button class="nav-btn" data-view="settings"><svg><use href="#i-sliders"/></svg><span>Ajustes</span></button>
     </nav>
   </header>
@@ -62,7 +64,7 @@
               <span class="screen-leds" id="screen-leds"></span>
             </div>
             <div class="screen-main">
-              <span class="screen-kicker">efeito</span>
+              <span class="screen-kicker" id="screen-kicker">efeito</span>
               <strong class="screen-fx" id="screen-fx">—</strong>
               <span class="screen-pal" id="screen-pal"></span>
             </div>
@@ -86,6 +88,11 @@
           </div>
           <input type="range" id="bri" class="range" min="1" max="255" value="128" aria-label="Brilho">
         </div>
+        <label class="frame-switch" id="ambi-switch" hidden title="Ambilight: as cores da tela do PC, mandadas pelo HyperHDR. Desligado, o WLED ignora a tela e mostra o efeito escolhido aqui.">
+          <input type="checkbox" id="ambi-on">
+          <span class="sw" aria-hidden="true"><i></i></span>
+          <span class="frame-switch-text"><strong>Ambilight</strong><small id="ambi-sub">cores da tela do PC</small></span>
+        </label>
         <label class="frame-switch" id="frame-switch" hidden title="Junta os 4 lados (base, direita, topo e esquerda) num segmento só, para efeitos como o Rainbow darem a volta na tela toda. Desligado, cada lado roda o efeito separado.">
           <input type="checkbox" id="frame-full">
           <span class="sw" aria-hidden="true"><i></i></span>
@@ -156,6 +163,9 @@
       </section>
     </div>
   </main>
+
+  <!-- ===================== TUTORIAL ===================== -->
+  <main id="view-guide" class="page" hidden></main>
 
   <!-- ===================== AJUSTES ===================== -->
   <main id="view-settings" class="page" hidden>

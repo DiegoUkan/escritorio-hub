@@ -32,11 +32,13 @@ const newSegment = (id, start, stop, n) => ({ id, n, start, stop, col: [[255, 17
 const bootSegments = () => [newSegment(0, 0, 34, 'Base'), newSegment(1, 34, 49, 'Direita'), newSegment(2, 49, 83, 'Topo'), newSegment(3, 83, 98, 'Esquerda')];
 
 export function startFakeWled({ leds = 98, port = 0 } = {}) {
-  const state = { on: true, bri: 80, ps: 1, seg: bootSegments() };
+  const state = { on: true, bri: 80, ps: 1, lor: 0, seg: bootSegments() };
   let bootAt = Date.now();
   let uptimeBase = 100;
+  let live = null; // stream de cores chegando pela rede (ex.: { lm: 'DDP', lip: '192.168.1.50' })
   const info = () => ({
-    ver: FIX.version, name: 'Escritorio Monitor', ip: '127.0.0.1', live: false,
+    ver: FIX.version, name: 'Escritorio Monitor', ip: '127.0.0.1',
+    live: !!live, lm: live?.lm ?? '', lip: live?.lip ?? '',
     leds: { count: leds, pwr: 1260, maxpwr: 2000 }, wifi: { signal: 82 },
     uptime: Math.floor((Date.now() - bootAt) / 1000) + uptimeBase,
   });
@@ -48,6 +50,14 @@ export function startFakeWled({ leds = 98, port = 0 } = {}) {
     const buf = Buffer.alloc(2 + leds * 3);
     buf[0] = 0x4c;
     buf[1] = 1;
+    // Ambilight: com stream chegando e lor 0, o WLED mostra as cores da tela e ignora os segmentos
+    if (live && state.lor === 0) {
+      for (let i = 0; i < leds; i++) {
+        const c = samplePalette(FIX.palx['11'], [], i / leds / 3 + t * 0.02);
+        buf.set(c.map((v) => Math.round(v * 0.7)), 2 + i * 3);
+      }
+      return buf;
+    }
     for (const s of state.seg) {
       const len = s.stop - s.start;
       for (let i = s.start; i < s.stop; i++) {
@@ -113,6 +123,7 @@ export function startFakeWled({ leds = 98, port = 0 } = {}) {
           posts.push(p);
           if ('on' in p) state.on = p.on;
           if ('bri' in p) state.bri = p.bri;
+          if ('lor' in p) state.lor = p.lor;
           if (p.MultiRelay) relays[p.MultiRelay.relay] = p.MultiRelay.on;
           applySegments(p.seg ?? []);
           return json({ success: true });
@@ -148,8 +159,11 @@ export function startFakeWled({ leds = 98, port = 0 } = {}) {
         relays,
         wss,
         // simula o ESP reiniciando: volta com o preset de boot (4 lados) e o uptime zerado
+        // simula o HyperHDR começando (ou parando, com null) a mandar as cores da tela
+        setLive: (v) => (live = v),
         reboot: () => {
           state.seg = bootSegments();
+          state.lor = 0; // o "ignorar até reiniciar" (lor 2) some quando o ESP reinicia
           bootAt = Date.now();
           uptimeBase = 0;
         },
@@ -166,5 +180,8 @@ export function startFakeWled({ leds = 98, port = 0 } = {}) {
 // node test/fake-wled.js 9911 → sobe um WLED falso para testar a interface
 if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(process.argv[2] || 9911);
-  startFakeWled({ port }).then((w) => console.log(`WLED falso em http://127.0.0.1:${w.port}`));
+  startFakeWled({ port }).then((w) => {
+    if (process.argv.includes('--live')) w.setLive({ lm: 'DDP', lip: '192.168.1.50' });
+    console.log(`WLED falso em http://127.0.0.1:${w.port}`);
+  });
 }

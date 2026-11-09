@@ -1,0 +1,170 @@
+<!-- Tutorial do Escritório Hub: carregado na aba Tutorial. Os valores com data-fill vêm da configuração do hub. -->
+<div class="guide">
+  <nav class="guide-toc" aria-label="Seções do tutorial">
+    <span class="guide-toc-title">Tutorial</span>
+    <a href="#g-mapa">Como tudo se conecta</a>
+    <a href="#g-pc-novo">Checklist do PC novo</a>
+    <a href="#g-hub">Atualizar o hub</a>
+    <a href="#g-openrgb">OpenRGB</a>
+    <a href="#g-warp">Cloudflare WARP</a>
+    <a href="#g-ambilight">Ambilight</a>
+    <a href="#g-som">Som do PC</a>
+    <a href="#g-links">Links</a>
+  </nav>
+
+  <div class="guide-body">
+    <header class="guide-hero panel">
+      <span class="guide-kicker">Escritório Hub · versão <b data-fill="version">—</b></span>
+      <h1>Tudo o que precisa estar instalado e configurado</h1>
+      <p>Guia para montar o escritório de novo do zero, ou quando chegar o PC novo: o que roda onde, o que instalar, os comandos prontos para copiar e os links.</p>
+    </header>
+
+    <!-- ================= MAPA ================= -->
+    <section class="panel guide-sec" id="g-mapa">
+      <h2>Como tudo se conecta</h2>
+      <div class="guide-map">
+        <div class="map-node">
+          <span class="map-icon"><svg><use href="#i-monitor"/></svg></span>
+          <strong>ESP32 da mesa</strong>
+          <span>WLED 0.15 · 98 LEDs na moldura do monitor · relé da caixa de som</span>
+          <code data-fill="monitor-ip">192.168.1.251</code>
+        </div>
+        <div class="map-link" aria-hidden="true"><i></i></div>
+        <div class="map-node accent">
+          <span class="map-icon"><svg><use href="#i-layers"/></svg></span>
+          <strong>Escritório Hub</strong>
+          <span>Container no CasaOS do servidor: esta página, efeitos, favoritos, caixa de som</span>
+          <code><span data-fill="server-ip">192.168.1.170</span>:8090</code>
+        </div>
+        <div class="map-link" aria-hidden="true"><i></i></div>
+        <div class="map-node">
+          <span class="map-icon"><svg><use href="#i-cpu"/></svg></span>
+          <strong>PC</strong>
+          <span>OpenRGB (RAM, placa-mãe, periféricos) e HyperHDR (Ambilight)</span>
+          <code data-fill="pc-ip">IP do PC</code>
+        </div>
+      </div>
+      <ul class="guide-list">
+        <li>O hub conversa com o WLED pela rede de casa. Ele liga a caixa de som quando o PC responde na porta configurada em Ajustes.</li>
+        <li>O hub fala com o OpenRGB do PC na porta <b>6742</b>. Para isso o servidor precisa alcançar o PC (veja <a href="#g-warp">Cloudflare WARP</a>).</li>
+        <li>No Ambilight, quem manda as cores para o WLED é o HyperHDR, direto do PC. O hub só mostra e pausa.</li>
+      </ul>
+    </section>
+
+    <!-- ================= CHECKLIST ================= -->
+    <section class="panel guide-sec" id="g-pc-novo">
+      <h2>Checklist do PC novo <span class="guide-count" id="guide-count"></span></h2>
+      <p class="muted">As marcações ficam salvas só neste navegador: o que você marcar no PC não aparece no celular.</p>
+      <ol class="guide-checks">
+        <li><label><input type="checkbox" data-check="ip"> <span><b>IP fixo para o PC.</b> No roteador, reserve um IP para o PC novo (DHCP reservation) e anote. É esse IP que vai nos Ajustes do hub.</span></label></li>
+        <li><label><input type="checkbox" data-check="rede-privada"> <span><b>Rede do Windows como Privada.</b> Configurações → Rede e Internet → propriedades da conexão. Para conferir, rode <code>Get-NetConnectionProfile</code> no PowerShell: tem que aparecer <code>Private</code>. Na rede Pública o firewall bloqueia o hub.</span></label></li>
+        <li><label><input type="checkbox" data-check="msi"> <span><b>Sem RGB do MSI Center.</b> Não instale o Mystic Light (ou desligue o controle de LED dele), senão ele briga com o OpenRGB.</span></label></li>
+        <li><label><input type="checkbox" data-check="openrgb"> <span><b>OpenRGB instalado e aberto para a rede.</b> Siga a seção <a href="#g-openrgb">OpenRGB</a>, incluindo o comando como administrador.</span></label></li>
+        <li><label><input type="checkbox" data-check="warp"> <span><b>Cloudflare WARP ajustado.</b> Se o PC novo usar WARP, tire o servidor do túnel quando estiver em casa (seção <a href="#g-warp">WARP</a>).</span></label></li>
+        <li><label><input type="checkbox" data-check="hub"> <span><b>Hub apontando para o PC novo.</b> Em Ajustes: card do PC com o IP novo e porta <b>6742</b>; OpenRGB ligado, mesmo IP, porta <b>6742</b>. Salve e veja o card do OpenRGB listar os dispositivos.</span></label></li>
+        <li><label><input type="checkbox" data-check="hyperhdr"> <span><b>Ambilight.</b> Instale e configure o HyperHDR (seção <a href="#g-ambilight">Ambilight</a>).</span></label></li>
+        <li><label><input type="checkbox" data-check="esp-pc"> <span><b>LEDs de dentro do PC (plano).</b> ESP32 com WLED dentro do gabinete para fans e water cooler, alimentado pela fonte (Molex/SATA 5V). Depois é só adicionar em Ajustes → Adicionar WLED, como fita reta.</span></label></li>
+        <li><label><input type="checkbox" data-check="som"> <span><b>Som do PC nos LEDs (depois).</b> Seção <a href="#g-som">Som do PC</a>.</span></label></li>
+      </ol>
+    </section>
+
+    <!-- ================= HUB ================= -->
+    <section class="panel guide-sec" id="g-hub">
+      <h2>Atualizar o hub</h2>
+      <p>O botão de atualizar do CasaOS não serve para este app: ele não procura versão nova de imagens <code>latest</code> nem de apps instalados fora da loja. Cada versão do hub tem a própria tag, e atualizar é trocar a tag:</p>
+      <ol class="guide-steps">
+        <li>No painel do CasaOS, abra o menu do app (⋮) → <b>Settings</b>.</li>
+        <li>No campo <b>Tag</b>, coloque a versão nova (por exemplo <code>0.4.0</code>; a versão instalada aparece no topo deste tutorial e em Ajustes → Geral).</li>
+        <li>Clique em <b>Save</b>. O CasaOS baixa a imagem nova e recria o container. Configurações e favoritos ficam em <code>/DATA/AppData/escritorio-hub</code> e não se perdem.</li>
+      </ol>
+      <div class="callout warn"><b>Não use</b> <code>docker rm</code> no terminal: ele apaga o container e o app some do CasaOS. Se acontecer, instale de novo com <b>+ → Install a customized app → Import</b> e o <code>docker-compose.yml</code> do repositório; as configurações voltam sozinhas.</div>
+    </section>
+
+    <!-- ================= OPENRGB ================= -->
+    <section class="panel guide-sec" id="g-openrgb">
+      <h2>OpenRGB</h2>
+      <p>É a ponte para o RGB que só o PC controla por software: a memória RAM (XPG Lancer Blade), os conectores ARGB da placa-mãe (se os fans e o water cooler ficarem nela) e periféricos compatíveis. No hub, o modo <b>Todos</b> pinta o PC com a mesma cor do monitor.</p>
+      <h3>Instalar</h3>
+      <ol class="guide-steps">
+        <li>Baixe o instalador para Windows em <a href="https://openrgb.org/releases.html" target="_blank" rel="noopener">openrgb.org/releases</a> e instale.</li>
+        <li>Instale também o <a href="https://pawnio.eu/" target="_blank" rel="noopener">PawnIO</a>. Sem ele, o OpenRGB não enxerga a RGB da memória e de algumas placas-mãe.</li>
+        <li>O OpenRGB 1.x roda como <b>serviço do Windows</b> e abre sozinho com o PC. A janela que você abre é só um cliente do serviço, por isso ela mostra a aba <b>SDK Client</b>. Para conferir, rode <code>Get-Service OpenRGB</code>.</li>
+        <li>Se a janela mostrar <b>SDK Server</b> em vez de SDK Client, não tem serviço: nessa aba, use o host <code>0.0.0.0</code>, clique em iniciar e, do bloco abaixo, rode só a linha do <code>New-NetFirewallRule</code>.</li>
+        <li>Na primeira vez, abra a janela e confira se a RAM e a placa-mãe aparecem.</li>
+      </ol>
+      <h3>Abrir o servidor para a rede</h3>
+      <p>O serviço vem escutando só no próprio PC (<code>127.0.0.1</code>), e o hub dá "timeout". Rode no <b>PowerShell como administrador</b>. A tela Settings → Server da janela não muda o serviço: ele usa o próprio arquivo, em <code>C:\Program Files\OpenRGB\service_config\OpenRGB.json</code>. O bloco faz backup desse arquivo, troca para <code>0.0.0.0</code>, libera a porta 6742 só para a rede de casa e reinicia o serviço:</p>
+      <pre class="code"><code>$f = 'C:\Program Files\OpenRGB\service_config\OpenRGB.json'
+Start-Service OpenRGB
+Start-Sleep 5
+Stop-Service OpenRGB
+Copy-Item $f "$f.bak"
+$t = [IO.File]::ReadAllText($f) -replace '"default_host":\s*"127\.0\.0\.1"', '"default_host": "0.0.0.0"'
+[IO.File]::WriteAllText($f, $t, (New-Object Text.UTF8Encoding $false))
+New-NetFirewallRule -DisplayName "OpenRGB SDK" -Direction Inbound -Protocol TCP -LocalPort 6742 -Action Allow -Profile Private,Domain -RemoteAddress 192.168.1.0/24
+Start-Service OpenRGB
+netstat -ano | findstr 6742</code></pre>
+      <p>A janela do OpenRGB pode perder a conexão nessa hora: é só abrir de novo. No final tem que aparecer <code>0.0.0.0:6742 LISTENING</code>. A regra do firewall vale só para <code>192.168.1.0/24</code> porque o servidor do OpenRGB não tem senha e o Radmin VPN também conta como rede privada.</p>
+      <div class="callout warn"><b>Mouse Redragon M801P-RGB:</b> o OpenRGB não controla este mouse hoje, então ele não aparece no hub. No Windows ele aparece como <code>25A7:FA09</code>, e o OpenRGB só conhece mouses Redragon do fabricante USB <code>04D9</code>. O "Redragon M801 Sniper" da lista do OpenRGB é outro modelo (<code>04D9:FC58</code>). Por enquanto, escolha a cor no <a href="https://redragonshop.com/blogs/product-download/redragon-sniper-pro-m801p-rgb-gaming-mice" target="_blank" rel="noopener">software oficial do M801P-RGB</a>, com o mouse no fio ou no receptor 2.4G (o software não funciona por Bluetooth). Quando atualizar o OpenRGB, veja se ele passou a ser detectado.</div>
+    </section>
+
+    <!-- ================= WARP ================= -->
+    <section class="panel guide-sec" id="g-warp">
+      <h2>Cloudflare WARP</h2>
+      <p>O perfil do Zero Trust manda tudo que vai para o servidor (<code data-fill="server-ip">192.168.1.170</code>) pelo túnel do WARP. Quando o hub chama o PC pela rede de casa, o PC responde pelo túnel e a resposta nunca chega: o card do PC fica desligado e o OpenRGB dá timeout. Com o WARP desligado funciona na hora.</p>
+      <p>A correção definitiva fica no painel do <a href="https://one.dash.cloudflare.com/" target="_blank" rel="noopener">Cloudflare Zero Trust</a>, em <b>Devices → Device profiles</b>, e o WARP pode continuar ligado:</p>
+      <ul class="guide-list">
+        <li><b>PC que não sai de casa:</b> crie um perfil só para ele, igual ao atual, mas sem o <code>192.168.1.170/32</code> no Split Tunnel. A regra do perfil precisa pegar só esse PC. Os outros aparelhos continuam usando o túnel.</li>
+        <li><b>PC que sai de casa:</b> use <b>Managed networks</b>, para o WARP reconhecer a rede de casa e tirar o servidor do túnel só nela. Precisa de um pequeno serviço HTTPS no servidor para servir de "farol".</li>
+      </ul>
+      <p>Depois, com o WARP ligado, o card do OpenRGB tem que continuar conectado. Para ver as rotas que o WARP aplicou, rode <code>warp-cli settings</code>.</p>
+      <p class="muted">Docs: <a href="https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/configure/device-profiles/" target="_blank" rel="noopener">Device profiles</a> · <a href="https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/configure/managed-networks/" target="_blank" rel="noopener">Managed networks</a> · <a href="https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/configure/route-traffic/split-tunnels/" target="_blank" rel="noopener">Split Tunnels</a></p>
+    </section>
+
+    <!-- ================= AMBILIGHT ================= -->
+    <section class="panel guide-sec" id="g-ambilight">
+      <h2>Ambilight (HyperHDR)</h2>
+      <p>O HyperHDR é gratuito e open source. Ele captura a tela do PC e manda as cores para o WLED da moldura pela rede. Enquanto ele manda, o WLED mostra as cores da tela; quando para (PC desligado ou HyperHDR fechado), o WLED volta sozinho para o efeito de antes.</p>
+      <h3>Instalar e configurar</h3>
+      <ol class="guide-steps">
+        <li>Baixe o instalador para Windows (<code>HyperHDR-…-Windows-AMD64.exe</code>) em <a href="https://github.com/awawa-dev/HyperHDR/releases" target="_blank" rel="noopener">github.com/awawa-dev/HyperHDR/releases</a> e instale.</li>
+        <li>Abra pelo atalho. Clique com o botão direito no ícone da bandeja → <b>Settings</b> para abrir o painel no navegador (no próprio PC, normalmente <code>http://localhost:8090</code>).</li>
+        <li><b>LED hardware:</b> controlador <b>WLED</b>, endereço <code data-fill="monitor-ip">192.168.1.251</code>, <b>98</b> LEDs.</li>
+        <li><b>Layout:</b> clássico, <b>34</b> em cima, <b>34</b> embaixo e <b>15</b> em cada lateral. A fita começa no canto inferior esquerdo e vai para a direita pela base, sobe pela direita, volta pelo topo e desce pela esquerda. Use a prévia do layout para achar o LED 0 e ajuste a posição inicial e a direção até bater com a fita.</li>
+        <li><b>Captura:</b> em Video capturing, configure o DirectX, escolha o monitor do meio e salve. Depois ative <b>enable system capture</b>, salve de novo e confira a prévia com um vídeo.</li>
+        <li><b>Iniciar com o Windows:</b> aperte <kbd>Win</kbd>+<kbd>R</kbd>, digite <code>shell:startup</code> e copie o atalho do HyperHDR para essa pasta.</li>
+      </ol>
+      <h3>No hub</h3>
+      <p>Quando o HyperHDR estiver mandando cores, aparece o botão <b>Ambilight</b> embaixo do monitor ao vivo. Desligado, o WLED ignora a tela e mostra o efeito escolhido no hub, mesmo com o HyperHDR aberto. Se o ESP reiniciar, o Ambilight volta a valer.</p>
+      <p class="muted">No Ambilight a divisão da moldura não importa: o WLED usa os 98 LEDs na ordem da fita. Ele aceita as cores pela rede por padrão (WLED → Config → Sync Interfaces → Realtime). Mais detalhes em <a href="https://kno.wled.ge/interfaces/udp-realtime/" target="_blank" rel="noopener">tempo real no WLED</a>.</p>
+    </section>
+
+    <!-- ================= SOM ================= -->
+    <section class="panel guide-sec" id="g-som">
+      <h2>Som do PC nos LEDs <small>para depois</small></h2>
+      <p>Os efeitos com a notinha <svg class="ico inline"><use href="#i-music"/></svg> na lista do hub reagem a som. O WLED 0.15 já traz o módulo de áudio (AudioReactive); falta dar o som para ele. O plano escolhido é mandar o som do Windows pela rede:</p>
+      <ol class="guide-steps">
+        <li>No WLED (<a data-fill-href="monitor-url" href="http://192.168.1.251" target="_blank" rel="noopener">abrir o WLED</a>): <b>Config → Usermods → AudioReactive</b>: ligado, e em <b>Sync</b> o modo <b>Receive</b>, porta <b>11988</b>. Reinicie o ESP.</li>
+        <li>No PC: <a href="https://github.com/Victoare/SR-WLED-audio-server-win" target="_blank" rel="noopener">WledSRServer</a> (app portátil para Windows). Escolha a entrada <b>Loopback</b> (som do sistema) e a porta <b>11988</b>.</li>
+        <li>No hub, escolha um efeito com a notinha. No WLED, o Info deve mostrar "UDP Sound Sync: receive mode v2".</li>
+      </ol>
+      <p class="muted">Alternativa sem nada no PC: um microfone I2S INMP441 ligado no ESP da mesa (reage a qualquer som do ambiente, mas pega voz e barulho também). Como funciona o sync: <a href="https://mm.kno.wled.ge/soundreactive/sync/" target="_blank" rel="noopener">WLED Sound Sync</a>.</p>
+    </section>
+
+    <!-- ================= LINKS ================= -->
+    <section class="panel guide-sec" id="g-links">
+      <h2>Links</h2>
+      <div class="guide-links">
+        <a data-fill-href="monitor-url" href="http://192.168.1.251" target="_blank" rel="noopener"><strong>WLED da mesa</strong><span>interface própria do ESP32</span></a>
+        <a href="https://kno.wled.ge/" target="_blank" rel="noopener"><strong>Documentação do WLED</strong><span>kno.wled.ge</span></a>
+        <a href="https://openrgb.org/releases.html" target="_blank" rel="noopener"><strong>OpenRGB</strong><span>downloads e versões</span></a>
+        <a href="https://github.com/awawa-dev/HyperHDR/releases" target="_blank" rel="noopener"><strong>HyperHDR</strong><span>Ambilight para Windows</span></a>
+        <a href="https://github.com/Victoare/SR-WLED-audio-server-win" target="_blank" rel="noopener"><strong>WledSRServer</strong><span>som do PC para o WLED</span></a>
+        <a href="https://one.dash.cloudflare.com/" target="_blank" rel="noopener"><strong>Cloudflare Zero Trust</strong><span>perfis do WARP</span></a>
+        <a href="https://redragonshop.com/blogs/product-download/redragon-sniper-pro-m801p-rgb-gaming-mice" target="_blank" rel="noopener"><strong>Software Redragon</strong><span>luz do mouse M801P-RGB</span></a>
+        <a href="https://pawnio.eu/" target="_blank" rel="noopener"><strong>PawnIO</strong><span>driver que o OpenRGB usa para a RAM</span></a>
+        <a href="https://github.com/DiegoUkan/escritorio-hub" target="_blank" rel="noopener"><strong>Código do hub</strong><span>github.com/DiegoUkan/escritorio-hub</span></a>
+      </div>
+    </section>
+  </div>
+</div>

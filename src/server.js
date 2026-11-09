@@ -242,7 +242,7 @@ async function sendToWled(dev, cmd, quick = false) {
   if (!quick) await pollWled(dev);
 }
 
-// Comando para um WLED: { on, bri, color:[r,g,b], slot, fx, pal, sx, ix, c1, c2, c3, ps }
+// Comando para um WLED: { on, bri, color:[r,g,b], slot, fx, pal, sx, ix, c1, c2, c3, ps, lor }
 app.post('/api/wled/:id', wrap(async (req, res) => {
   const dev = findWled(req.params.id);
   if (!dev) return res.status(404).json({ error: 'WLED não encontrado' });

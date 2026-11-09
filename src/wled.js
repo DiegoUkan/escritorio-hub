@@ -33,12 +33,14 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const SLIDER_MAX = { sx: 255, ix: 255, c1: 255, c2: 255, c3: 31 };
 
 // Converte um comando do hub para o JSON do WLED, aplicando em todos os segmentos.
-// cmd: { on, bri, color:[r,g,b], slot (0-2), fx, pal, sx, ix, c1, c2, c3, ps }
+// cmd: { on, bri, color:[r,g,b], slot (0-2), fx, pal, sx, ix, c1, c2, c3, ps, lor }
 export function buildState(cmd, segIds = [0]) {
   const state = {};
   if (typeof cmd.on === 'boolean') state.on = cmd.on;
   if (Number.isFinite(cmd.bri)) state.bri = clamp(Math.round(cmd.bri), 1, 255);
   if (Number.isInteger(cmd.ps)) state.ps = cmd.ps;
+  // Ambilight: 0 = mostra as cores que chegam pela rede (HyperHDR), 2 = ignora até o ESP reiniciar
+  if ([0, 1, 2].includes(cmd.lor)) state.lor = cmd.lor;
 
   const seg = {};
   if (Array.isArray(cmd.color) && cmd.color.length === 3) {
@@ -130,7 +132,10 @@ export function summarize(si) {
     version: info.ver ?? '',
     ip: info.ip ?? '',
     deviceName: info.name ?? '',
-    live: !!info.live,
+    live: !!info.live,           // recebendo cores pela rede (ex.: HyperHDR)
+    liveMode: info.lm ?? '',
+    liveIp: info.lip ?? '',
+    lor: state.lor ?? 0,         // 0 = mostra o que chega pela rede, 1/2 = ignora
     signal: info.wifi?.signal ?? null,
     uptime: Number.isFinite(info.uptime) ? info.uptime : null,
   };
