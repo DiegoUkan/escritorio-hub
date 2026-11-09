@@ -7,36 +7,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-
-function fakeWled() {
-  const state = { on: false, bri: 50, seg: [{ id: 0, n: 'Base', start: 0, stop: 34, col: [[0, 0, 0]], fx: 0, pal: 0, sx: 128 }, { id: 1, n: 'Topo', start: 34, stop: 98, col: [[0, 0, 0]], fx: 0, pal: 0, sx: 128 }] };
-  const posts = [];
-  const server = http.createServer((req, res) => {
-    let body = '';
-    req.on('data', (c) => (body += c));
-    req.on('end', () => {
-      res.setHeader('Content-Type', 'application/json');
-      if (req.url === '/json/si') return res.end(JSON.stringify({ info: { ver: '0.15.5', leds: { count: 98 } }, state }));
-      if (req.url === '/json/eff') return res.end(JSON.stringify(['Solid', 'Blink']));
-      if (req.url === '/json/pal') return res.end(JSON.stringify(['Default']));
-      if (req.url === '/json/state' && req.method === 'POST') {
-        const p = JSON.parse(body);
-        posts.push(p);
-        if ('on' in p) state.on = p.on;
-        if ('bri' in p) state.bri = p.bri;
-        for (const s of p.seg ?? []) Object.assign(state.seg.find((x) => x.id === s.id), s);
-        return res.end(JSON.stringify({ success: true }));
-      }
-      res.statusCode = 404;
-      res.end('{}');
-    });
-  });
-  return new Promise((r) => server.listen(0, '127.0.0.1', () => r({ server, port: server.address().port, posts, state })));
-}
+import { startFakeWled } from './fake-wled.js';
 
 const freePort = () => new Promise((r) => { const s = net.createServer().listen(0, () => { const p = s.address().port; s.close(() => r(p)); }); });
 
-async function waitFor(fn, ms = 5000) {
+async function waitFor(fn, ms = 6000) {
   const end = Date.now() + ms;
   for (;;) {
     try {
@@ -48,8 +23,27 @@ async function waitFor(fn, ms = 5000) {
   }
 }
 
-test('hub controla WLED e caixa de som', async (t) => {
-  const wled = await fakeWled();
+// lê o primeiro quadro de um Server-Sent Events
+function firstSseData(url) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, (res) => {
+      let buf = '';
+      res.on('data', (c) => {
+        buf += c;
+        const m = buf.match(/^data: ([0-9a-f]+)$/m);
+        if (m) {
+          req.destroy();
+          resolve({ type: res.headers['content-type'], data: m[1] });
+        }
+      });
+    });
+    req.on('error', reject);
+    setTimeout(() => reject(new Error('sem quadros')), 5000);
+  });
+}
+
+test('hub controla WLED, caixa de som, listas, favoritos e prévia ao vivo', async (t) => {
+  const wled = await startFakeWled();
   const pcSock = net.createServer().listen(0, '127.0.0.1'); // "PC ligado"
   await new Promise((r) => pcSock.once('listening', r));
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-'));
@@ -62,7 +56,7 @@ test('hub controla WLED e caixa de som', async (t) => {
   const hub = spawn(process.execPath, ['src/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dataDir }, stdio: 'inherit' });
   t.after(() => {
     hub.kill();
-    wled.server.close();
+    wled.close();
     pcSock.close();
   });
   const base = `http://127.0.0.1:${port}`;
@@ -74,20 +68,54 @@ test('hub controla WLED e caixa de som', async (t) => {
     return s.wled[0].online && s.pc.online && s.speaker.on ? s : null;
   });
   assert.equal(status.wled[0].leds, 98);
-  assert.ok(wled.posts.some((p) => p.MultiRelay?.on === true), 'ligou o relé porque o PC está online');
+  assert.deepEqual(status.wled[0].layout, { type: 'frame', bottom: 34, right: 15, top: 34, left: 15 }, 'config antiga ganha o layout da moldura');
+  assert.ok(status.favorites.effects.includes('Aurora'));
+  assert.equal(wled.relays[0], true, 'ligou o relé porque o PC está online');
 
+  // cor, brilho e efeito em todos os segmentos
   await post('/api/all', { on: true, color: [10, 20, 30], bri: 120 });
-  assert.equal(wled.state.on, true);
   assert.equal(wled.state.bri, 120);
-  assert.deepEqual(wled.state.seg.map((s) => s.col[0]), [[10, 20, 30], [10, 20, 30]]);
+  assert.deepEqual(wled.state.seg.map((s) => s.col[0]), Array(4).fill([10, 20, 30]));
+  await post('/api/wled/monitor', { color: [1, 2, 3], slot: 1 });
+  assert.deepEqual(wled.state.seg[0].col.slice(0, 2), [[10, 20, 30], [1, 2, 3]], 'slot 1 muda só a cor de fundo');
+  const res = await post('/api/wled/monitor', { fx: 38, ix: 200 });
+  assert.equal(res.fx, 38);
+  assert.equal(res.ix, 200);
+  assert.equal(wled.posts.at(-1).seg[0].fxdef, true);
+  const quick = wled.posts.length;
+  await post('/api/wled/monitor?quick=1', { bri: 50 });
+  assert.equal(wled.state.bri, 50);
+  assert.equal(wled.posts.length, quick + 1);
 
+  // caixa de som manual
   const sp = await post('/api/speaker', { mode: 'off' });
   assert.equal(sp.on, false);
-  assert.deepEqual(wled.posts.at(-1), { MultiRelay: { relay: 0, on: false } });
+  assert.equal(wled.relays[0], false);
 
+  // listas com metadados e cores das paletas
   const lists = await get('/api/wled/monitor/lists');
-  assert.deepEqual(lists.effects, ['Solid', 'Blink']);
+  assert.ok(lists.effects.length > 100);
+  const aurora = lists.effects.find((e) => e.name === 'Aurora');
+  assert.equal(aurora.palette, true);
+  assert.ok(lists.palettes.find((p) => p.name === 'Sunset').stops.length > 1);
 
+  // favoritos
+  let favs = await post('/api/favorites', { kind: 'effects', name: 'Meteor', fav: true });
+  assert.equal(favs.effects.at(-1), 'Meteor');
+  favs = await post('/api/favorites', { kind: 'effects', name: 'Solid', fav: false });
+  assert.ok(!favs.effects.includes('Solid'));
+  const bad = await fetch(base + '/api/favorites', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"kind":"x"}' });
+  assert.equal(bad.status, 400);
+
+  // prévia ao vivo via SSE (98 LEDs x 3 bytes = 588 dígitos hex)
+  const sse = await firstSseData(`${base}/api/wled/monitor/live`);
+  assert.match(sse.type, /text\/event-stream/);
+  assert.equal(sse.data.length, 98 * 6);
+
+  // página e arquivos estáticos
   const html = await fetch(base + '/').then((r) => r.text());
-  assert.match(html, /Escritório/);
+  assert.match(html, /ESCRITÓRIO/);
+  for (const asset of ['/js/app.js', '/vendor/iro.min.js', '/fonts/chakra/chakra-petch-latin-600-normal.woff2', '/fonts/inter/inter-latin-wght-normal.woff2']) {
+    assert.equal((await fetch(base + asset)).status, 200, asset);
+  }
 });

@@ -7,10 +7,14 @@ import * as wled from './wled.js';
 import { checkTcp } from './pc.js';
 import { SpeakerLogic } from './speaker.js';
 import { OpenRGBBridge } from './openrgb.js';
+import { fetchLists } from './wled-lists.js';
+import { LiveStream } from './live.js';
 
 const PORT = Number(process.env.PORT || 8090);
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const MODULES = path.join(ROOT, '..', 'node_modules');
+const LISTS_TTL_MS = 60 * 60 * 1000;
 
 const store = new ConfigStore(DATA_DIR);
 const speaker = new SpeakerLogic();
@@ -25,6 +29,33 @@ const live = {
 };
 
 const findWled = (id) => store.get().wled.find((d) => d.id === id);
+
+// Prévia ao vivo: um websocket por WLED, compartilhado por todas as páginas abertas
+const streams = new Map(); // id -> LiveStream
+function streamFor(id) {
+  let s = streams.get(id);
+  if (!s) {
+    s = new LiveStream(
+      () => findWled(id)?.host,
+      (si) => {
+        live.wled[id] = { online: true, error: '', ...wled.summarize(si) };
+      },
+    );
+    streams.set(id, s);
+  }
+  return s;
+}
+
+// Efeitos e paletas mudam pouco: guarda por dispositivo + versão do firmware
+const listsCache = new Map(); // id -> { key, at, data }
+async function getLists(dev, refresh = false) {
+  const key = `${dev.host}|${live.wled[dev.id]?.version ?? ''}`;
+  const hit = listsCache.get(dev.id);
+  if (!refresh && hit && hit.key === key && Date.now() - hit.at < LISTS_TTL_MS) return hit.data;
+  const data = await fetchLists(dev.host, wled.getJson);
+  listsCache.set(dev.id, { key, at: Date.now(), data });
+  return data;
+}
 
 async function pollWled(dev) {
   try {
@@ -58,6 +89,12 @@ async function tick() {
   const cfg = store.get();
   // remove dispositivos que saíram da configuração
   for (const id of Object.keys(live.wled)) if (!findWled(id)) delete live.wled[id];
+  for (const [id, s] of streams) {
+    if (!findWled(id)) {
+      s.shutdown();
+      streams.delete(id);
+    }
+  }
 
   const [, pcOnline] = await Promise.all([
     Promise.all(cfg.wled.map(pollWled)),
@@ -83,6 +120,9 @@ async function loop() {
 const app = express();
 app.use(express.json({ limit: '100kb' }));
 app.use(express.static(path.join(ROOT, '..', 'public')));
+app.use('/vendor/iro.min.js', express.static(path.join(MODULES, '@jaames', 'iro', 'dist', 'iro.min.js'), { maxAge: '7d' }));
+app.use('/fonts/chakra', express.static(path.join(MODULES, '@fontsource', 'chakra-petch', 'files'), { maxAge: '30d' }));
+app.use('/fonts/inter', express.static(path.join(MODULES, '@fontsource-variable', 'inter', 'files'), { maxAge: '30d' }));
 
 const wrap = (fn) => (req, res) =>
   Promise.resolve(fn(req, res)).catch((err) => res.status(502).json({ error: err.message }));
@@ -90,10 +130,11 @@ const wrap = (fn) => (req, res) =>
 app.get('/api/status', (req, res) => {
   const cfg = store.get();
   res.json({
-    wled: cfg.wled.map((d) => ({ online: false, ...live.wled[d.id], id: d.id, name: d.name || d.id, host: d.host })),
+    wled: cfg.wled.map((d) => ({ online: false, ...live.wled[d.id], id: d.id, name: d.name || d.id, host: d.host, layout: d.layout })),
     pc: { name: cfg.pc.name, configured: !!cfg.pc.host, ...live.pc },
     speaker: { enabled: cfg.speaker.enabled, mode: cfg.speaker.mode, ...live.speaker },
     openrgb: { enabled: cfg.openrgb.enabled, ...orgb.status() },
+    favorites: cfg.favorites,
     updatedAt: live.updatedAt,
   });
 });
@@ -108,38 +149,72 @@ app.put('/api/config', wrap(async (req, res) => {
   res.json(store.get());
 }));
 
-// Efeitos e paletas de um WLED (para os menus)
+// Efeitos (com os ajustes de cada um) e paletas (com as cores) de um WLED
 app.get('/api/wled/:id/lists', wrap(async (req, res) => {
   const dev = findWled(req.params.id);
   if (!dev) return res.status(404).json({ error: 'WLED não encontrado' });
-  const [effects, palettes] = await Promise.all([wled.getEffects(dev.host), wled.getPalettes(dev.host)]);
-  res.json({ effects, palettes });
+  res.json(await getLists(dev, req.query.refresh === '1'));
 }));
 
-async function sendToWled(dev, cmd) {
+// Prévia ao vivo das LEDs (Server-Sent Events, um quadro RGB em hex por mensagem)
+app.get('/api/wled/:id/live', (req, res) => {
+  const dev = findWled(req.params.id);
+  if (!dev) return res.status(404).json({ error: 'WLED não encontrado' });
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write('retry: 3000\n\n');
+  const stream = streamFor(dev.id);
+  stream.add(res);
+  const keepAlive = setInterval(() => res.write(': ping\n\n'), 15000);
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    stream.remove(res);
+  });
+});
+
+// Marca/desmarca um efeito ou paleta como favorito: { kind: "effects"|"palettes", name, fav }
+app.post('/api/favorites', wrap(async (req, res) => {
+  const { kind, name, fav } = req.body ?? {};
+  if (!['effects', 'palettes'].includes(kind) || typeof name !== 'string' || !name) {
+    return res.status(400).json({ error: 'use { kind: "effects"|"palettes", name, fav }' });
+  }
+  const current = store.get().favorites[kind].filter((n) => n !== name);
+  if (fav) current.push(name);
+  const errors = store.update({ favorites: { [kind]: current } });
+  if (errors.length) return res.status(400).json({ errors });
+  res.json(store.get().favorites);
+}));
+
+// quick = comando no meio de um arraste (cor, brilho): não relê o estado, para não sobrecarregar o ESP
+async function sendToWled(dev, cmd, quick = false) {
   const segIds = (live.wled[dev.id]?.segments ?? []).map((s) => s.id);
   const state = wled.buildState(cmd, segIds.length ? segIds : [0]);
   await wled.setState(dev.host, state);
-  await pollWled(dev);
+  if (!quick) await pollWled(dev);
 }
 
-// Comando para um WLED: { on, bri, color:[r,g,b], fx, pal, sx, ps }
+// Comando para um WLED: { on, bri, color:[r,g,b], slot, fx, pal, sx, ix, c1, c2, c3, ps }
 app.post('/api/wled/:id', wrap(async (req, res) => {
   const dev = findWled(req.params.id);
   if (!dev) return res.status(404).json({ error: 'WLED não encontrado' });
-  await sendToWled(dev, req.body ?? {});
+  await sendToWled(dev, req.body ?? {}, req.query.quick === '1');
   res.json(live.wled[dev.id]);
 }));
 
 // Comando para tudo ao mesmo tempo (todos os WLED + cor no OpenRGB)
 app.post('/api/all', wrap(async (req, res) => {
   const cmd = req.body ?? {};
-  const results = await Promise.allSettled(store.get().wled.map((d) => sendToWled(d, cmd)));
+  const quick = req.query.quick === '1';
+  const results = await Promise.allSettled(store.get().wled.map((d) => sendToWled(d, cmd, quick)));
   const failed = results.filter((r) => r.status === 'rejected').map((r) => r.reason.message);
   if (store.get().openrgb.enabled && orgb.connected) {
     try {
       if (cmd.on === false) await orgb.setColor([0, 0, 0]);
-      else if (Array.isArray(cmd.color)) await orgb.setColor(cmd.color);
+      else if (Array.isArray(cmd.color) && !cmd.slot) await orgb.setColor(cmd.color);
     } catch (err) {
       failed.push(`OpenRGB: ${err.message}`);
     }
