@@ -3,6 +3,7 @@ import { $, $$, api, throttle, toast, vivid, dominant, rgbToHex, hexToRgb, setRa
 import { Stage, parseHexFrame } from './stage.js';
 import { Library } from './library.js';
 import { initSettings, loadSettings } from './settings.js';
+import { loadGuide } from './guide.js';
 
 const ALL = '__all__';
 const DEFAULT_ACCENT = [168, 85, 247];
@@ -297,11 +298,67 @@ function renderStage(dev, meta) {
   const pal = paletteOf(dev);
   $('#screen-device').textContent = S.selected === ALL ? 'Todos os dispositivos' : dev.name;
   $('#screen-leds').textContent = dev.online ? `${dev.leds} LEDs · ${dev.ip || dev.host}` : 'offline';
-  $('#screen-fx').textContent = !dev.online ? 'Offline' : meta ? meta.name : dev.fx === 0 ? 'Solid' : `Efeito ${dev.fx}`;
-  $('#screen-pal').textContent = dev.online && meta?.palette && pal ? `Paleta ${pal.name}` : '';
+  const ambi = S.selected !== ALL && ambilightOn(dev);
+  $('#screen-kicker').textContent = ambi ? 'modo' : 'efeito';
+  $('#screen-fx').textContent = !dev.online ? 'Offline' : ambi ? 'Ambilight' : meta ? meta.name : dev.fx === 0 ? 'Solid' : `Efeito ${dev.fx}`;
+  $('#screen-pal').textContent = ambi ? `cores da tela do PC${dev.liveMode ? ` · ${dev.liveMode}` : ''}` : dev.online && meta?.palette && pal ? `Paleta ${pal.name}` : '';
   $('#screen-power').innerHTML = dev.online ? `<i class="pdot${dev.on ? ' on' : ''}"></i>${dev.on ? 'Ligado' : 'Desligado'}` : '';
   $('#screen-bri').textContent = dev.online ? `Brilho ${Math.round((dev.bri / 255) * 100)}%` : '';
 }
+
+// Moldura inteira (um segmento só, o efeito dá a volta na tela) ou 4 lados (cada lado roda o efeito)
+function renderFrameSwitch(dev) {
+  const el = $('#frame-switch');
+  const show = S.selected !== ALL && !!dev?.online && dev.layout?.type === 'frame';
+  el.hidden = !show;
+  if (!show || el.classList.contains('busy')) return;
+  const full = dev.frameMode === 'full';
+  $('#frame-full').checked = full;
+  $('#frame-sub').textContent = full ? 'o efeito dá a volta na tela toda' : dev.frameMode === 'sides' ? 'cada lado repete o efeito' : 'divisão personalizada no WLED';
+}
+$('#frame-full').addEventListener('change', async (e) => {
+  const dev = current();
+  if (!dev) return;
+  const mode = e.target.checked ? 'full' : 'sides';
+  const el = $('#frame-switch');
+  el.classList.add('busy');
+  try {
+    Object.assign(dev, await api('POST', `/api/wled/${encodeURIComponent(dev.id)}/frame`, { mode }));
+    toast(mode === 'full' ? 'Moldura inteira: o efeito dá a volta na tela' : '4 lados: cada lado roda o efeito');
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    el.classList.remove('busy');
+    render();
+  }
+});
+
+// Ambilight: aparece quando o WLED está recebendo cores pela rede (HyperHDR) ou quando o hub pausou
+const ambilightOn = (dev) => !!(dev?.online && dev.live && !dev.lor);
+function renderAmbilight(dev) {
+  const el = $('#ambi-switch');
+  const show = S.selected !== ALL && !!dev?.online && (dev.live || dev.lor > 0);
+  el.hidden = !show;
+  if (!show || el.classList.contains('busy')) return;
+  $('#ambi-on').checked = !dev.lor;
+  const from = dev.liveIp ? ` (${dev.liveIp})` : '';
+  $('#ambi-sub').textContent = dev.lor ? 'pausado: mostrando o efeito do hub' : dev.live ? `cores da tela do PC${from}` : 'esperando o HyperHDR';
+}
+$('#ambi-on').addEventListener('change', async (e) => {
+  const dev = current();
+  if (!dev) return;
+  const el = $('#ambi-switch');
+  el.classList.add('busy');
+  try {
+    Object.assign(dev, await api('POST', `/api/wled/${encodeURIComponent(dev.id)}`, { lor: e.target.checked ? 0 : 2 }));
+    toast(e.target.checked ? 'Ambilight ligado: cores da tela do PC' : 'Ambilight pausado: o monitor mostra o efeito do hub');
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    el.classList.remove('busy');
+    render();
+  }
+});
 
 function renderControls(dev, meta) {
   const anyOn = S.selected === ALL ? devices().some((d) => d.on) : !!dev?.on;
@@ -315,6 +372,8 @@ function renderControls(dev, meta) {
   }
   briEl.disabled = !dev?.online;
   setRangeFill(briEl);
+  renderFrameSwitch(dev);
+  renderAmbilight(dev);
 
   // cores que o efeito usa (Principal, Fundo, Extra...)
   const slots = meta?.colors?.length ? meta.colors : [{ slot: 0, label: 'Principal' }];
@@ -407,6 +466,7 @@ function render() {
   renderStage(dev, meta);
   renderControls(dev, meta);
   renderSystem(st);
+  if (st.hub) $('#hub-version').textContent = st.hub.version;
   library.setOffline(!dev?.online);
   library.setLists(listsOf(dev));
   library.setFavorites(st.favorites);
@@ -450,7 +510,9 @@ function showView(view) {
   $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
   $('#view-control').hidden = view !== 'control';
   $('#view-settings').hidden = view !== 'settings';
+  $('#view-guide').hidden = view !== 'guide';
   if (view === 'settings') loadSettings().catch((e) => toast(e.message, true));
+  if (view === 'guide') loadGuide(S.status).catch((e) => toast(e.message, true));
   window.scrollTo({ top: 0 });
 }
 $$('.nav-btn').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));

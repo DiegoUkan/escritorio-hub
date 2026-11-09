@@ -33,12 +33,14 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const SLIDER_MAX = { sx: 255, ix: 255, c1: 255, c2: 255, c3: 31 };
 
 // Converte um comando do hub para o JSON do WLED, aplicando em todos os segmentos.
-// cmd: { on, bri, color:[r,g,b], slot (0-2), fx, pal, sx, ix, c1, c2, c3, ps }
+// cmd: { on, bri, color:[r,g,b], slot (0-2), fx, pal, sx, ix, c1, c2, c3, ps, lor }
 export function buildState(cmd, segIds = [0]) {
   const state = {};
   if (typeof cmd.on === 'boolean') state.on = cmd.on;
   if (Number.isFinite(cmd.bri)) state.bri = clamp(Math.round(cmd.bri), 1, 255);
   if (Number.isInteger(cmd.ps)) state.ps = cmd.ps;
+  // Ambilight: 0 = mostra as cores que chegam pela rede (HyperHDR), 2 = ignora até o ESP reiniciar
+  if ([0, 1, 2].includes(cmd.lor)) state.lor = cmd.lor;
 
   const seg = {};
   if (Array.isArray(cmd.color) && cmd.color.length === 3) {
@@ -57,6 +59,49 @@ export function buildState(cmd, segIds = [0]) {
   }
   if (Object.keys(seg).length) state.seg = segIds.map((id) => ({ id, ...seg }));
   return state;
+}
+
+// ---------- Divisão da moldura em segmentos ----------
+// "full": um segmento só, com a moldura inteira (o efeito dá a volta na tela toda).
+// "sides": um segmento por lado (base, direita, topo, esquerda), e cada lado roda o efeito inteiro.
+export const SIDE_NAMES = ['Base', 'Direita', 'Topo', 'Esquerda'];
+const FRAME_ORDER = ['bottom', 'right', 'top', 'left'];
+
+export function frameSides(layout, total) {
+  const out = [];
+  let start = 0;
+  FRAME_ORDER.forEach((side, i) => {
+    const n = Math.max(0, Number(layout?.[side]) || 0);
+    const stop = Math.min(start + n, total);
+    if (stop > start) out.push({ name: SIDE_NAMES[i], start, stop });
+    start += n;
+  });
+  return out;
+}
+
+// Qual divisão o WLED está usando agora: full, sides ou custom (qualquer outra)
+export function frameModeOf(segments, layout, total) {
+  if (!segments?.length || !total) return 'custom';
+  if (segments.length === 1 && segments[0].start === 0 && segments[0].stop === total) return 'full';
+  const sides = frameSides(layout, total);
+  const same = sides.length === segments.length && sides.every((s, i) => segments[i].start === s.start && segments[i].stop === s.stop);
+  return same ? 'sides' : 'custom';
+}
+
+// O que passa do segmento principal para os segmentos novos, para todos os lados ficarem iguais
+const LOOK_KEYS = ['on', 'bri', 'col', 'fx', 'sx', 'ix', 'pal', 'c1', 'c2', 'c3', 'o1', 'o2', 'o3'];
+
+// JSON do WLED que redivide a moldura. current = state.seg do WLED agora.
+export function frameModeState(mode, layout, total, current = []) {
+  const wanted = mode === 'full' ? [{ name: 'Moldura', start: 0, stop: total }] : frameSides(layout, total);
+  const main = current[0] ?? {};
+  const look = {};
+  for (const k of LOOK_KEYS) if (main[k] !== undefined) look[k] = structuredClone(main[k]);
+  const seg = wanted.map((w, id) => ({ id, start: w.start, stop: w.stop, n: w.name, sel: true, ...(id === 0 ? {} : look) }));
+  // segmentos que sobraram são apagados (no WLED, stop 0 remove o segmento)
+  const lastId = current.reduce((m, s, i) => Math.max(m, s.id ?? i), -1);
+  for (let id = wanted.length; id <= lastId; id++) seg.push({ id, stop: 0 });
+  return { seg };
 }
 
 // Resumo do estado que a página precisa
@@ -87,7 +132,11 @@ export function summarize(si) {
     version: info.ver ?? '',
     ip: info.ip ?? '',
     deviceName: info.name ?? '',
-    live: !!info.live,
+    live: !!info.live,           // recebendo cores pela rede (ex.: HyperHDR)
+    liveMode: info.lm ?? '',
+    liveIp: info.lip ?? '',
+    lor: state.lor ?? 0,         // 0 = mostra o que chega pela rede, 1/2 = ignora
     signal: info.wifi?.signal ?? null,
+    uptime: Number.isFinite(info.uptime) ? info.uptime : null,
   };
 }

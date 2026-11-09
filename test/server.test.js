@@ -70,6 +70,8 @@ test('hub controla WLED, caixa de som, listas, favoritos e prévia ao vivo', asy
   assert.equal(status.wled[0].leds, 98);
   assert.deepEqual(status.wled[0].layout, { type: 'frame', bottom: 34, right: 15, top: 34, left: 15 }, 'config antiga ganha o layout da moldura');
   assert.ok(status.favorites.effects.includes('Aurora'));
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(status.hub.version, pkg.version, 'a página mostra a versão do hub');
   assert.equal(wled.relays[0], true, 'ligou o relé porque o PC está online');
 
   // cor, brilho e efeito em todos os segmentos
@@ -107,6 +109,46 @@ test('hub controla WLED, caixa de som, listas, favoritos e prévia ao vivo', asy
   const bad = await fetch(base + '/api/favorites', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"kind":"x"}' });
   assert.equal(bad.status, 400);
 
+  // moldura inteira: um segmento só, com o efeito do segmento principal
+  await post('/api/wled/monitor', { fx: 9, pal: 11 });
+  let dev = await post('/api/wled/monitor/frame', { mode: 'full' });
+  assert.equal(dev.frameMode, 'full');
+  assert.deepEqual(wled.state.seg.map((s) => [s.start, s.stop, s.fx]), [[0, 98, 9]]);
+  assert.equal((await get('/api/status')).wled[0].frameMode, 'full');
+  // ao salvar os Ajustes, a escolha da moldura continua
+  const cfgNow = await get('/api/config');
+  await fetch(base + '/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wled: cfgNow.wled.map(({ segmentMode, ...d }) => d) }) });
+  assert.equal((await get('/api/config')).wled[0].segmentMode, 'full');
+  // o ESP reinicia com o preset de boot (4 lados): o hub junta de novo sozinho
+  wled.reboot();
+  await waitFor(() => wled.state.seg.length === 1);
+  // 4 lados de novo, cada lado com o mesmo efeito
+  await post('/api/wled/monitor', { fx: 9 }); // o preset de boot trouxe outro efeito
+  dev = await post('/api/wled/monitor/frame', { mode: 'sides' });
+  assert.equal(dev.frameMode, 'sides');
+  assert.deepEqual(wled.state.seg.map((s) => [s.n, s.start, s.stop, s.fx]), [['Base', 0, 34, 9], ['Direita', 34, 49, 9], ['Topo', 49, 83, 9], ['Esquerda', 83, 98, 9]]);
+  assert.equal((await fetch(base + '/api/wled/monitor/frame', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"mode":"x"}' })).status, 400);
+
+  // Ambilight: o HyperHDR manda as cores da tela; o hub mostra e deixa pausar (lor 2) e voltar (lor 0)
+  assert.equal((await get('/api/status')).wled[0].live, false);
+  wled.setLive({ lm: 'DDP', lip: '192.168.1.50' });
+  const amb = await waitFor(async () => {
+    const s = (await get('/api/status')).wled[0];
+    return s.live ? s : null;
+  });
+  assert.equal(amb.liveMode, 'DDP');
+  assert.equal(amb.liveIp, '192.168.1.50');
+  assert.equal(amb.lor, 0);
+  dev = await post('/api/wled/monitor', { lor: 2 });
+  assert.equal(wled.state.lor, 2, 'o WLED passa a ignorar a tela');
+  assert.equal(dev.lor, 2);
+  assert.equal(wled.posts.at(-1).seg, undefined, 'pausar não mexe nos segmentos');
+  dev = await post('/api/wled/monitor', { lor: 0 });
+  assert.equal(wled.state.lor, 0);
+  await post('/api/wled/monitor', { lor: 7 });
+  assert.equal(wled.state.lor, 0, 'valor inválido é ignorado');
+  wled.setLive(null);
+
   // prévia ao vivo via SSE (98 LEDs x 3 bytes = 588 dígitos hex)
   const sse = await firstSseData(`${base}/api/wled/monitor/live`);
   assert.match(sse.type, /text\/event-stream/);
@@ -115,7 +157,7 @@ test('hub controla WLED, caixa de som, listas, favoritos e prévia ao vivo', asy
   // página e arquivos estáticos
   const html = await fetch(base + '/').then((r) => r.text());
   assert.match(html, /ESCRITÓRIO/);
-  for (const asset of ['/js/app.js', '/vendor/iro.min.js', '/fonts/chakra/chakra-petch-latin-600-normal.woff2', '/fonts/inter/inter-latin-wght-normal.woff2']) {
+  for (const asset of ['/js/app.js', '/js/guide.js', '/guide.html', '/vendor/iro.min.js', '/fonts/chakra/chakra-petch-latin-600-normal.woff2', '/fonts/inter/inter-latin-wght-normal.woff2']) {
     assert.equal((await fetch(base + asset)).status, 200, asset);
   }
 });

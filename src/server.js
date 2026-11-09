@@ -1,5 +1,6 @@
 // Escritório Hub: página web + API que controla os WLED, o OpenRGB e a caixa de som.
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ConfigStore } from './config.js';
@@ -14,6 +15,7 @@ const PORT = Number(process.env.PORT || 8090);
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const MODULES = path.join(ROOT, '..', 'node_modules');
+const VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, '..', 'package.json'), 'utf8')).version;
 const LISTS_TTL_MS = 60 * 60 * 1000;
 
 const store = new ConfigStore(DATA_DIR);
@@ -57,14 +59,49 @@ async function getLists(dev, refresh = false) {
   return data;
 }
 
+// Divisão da moldura (inteira ou 4 lados) escolhida no Controle. O WLED liga com a divisão do
+// preset de boot, então o hub reaplica a escolha quando ele volta a responder ou reinicia.
+const segWatch = new Map(); // id -> { ok, uptime } da última leitura do polling
+
+async function enforceFrameMode(dev, wledState) {
+  const sum = live.wled[dev.id];
+  if (!dev.segmentMode || dev.layout?.type !== 'frame' || !sum?.leds) return false;
+  if (wled.frameModeOf(sum.segments, dev.layout, sum.leds) === dev.segmentMode) return false;
+  await wled.setState(dev.host, wled.frameModeState(dev.segmentMode, dev.layout, sum.leds, wledState?.seg ?? []));
+  live.wled[dev.id] = { online: true, error: '', ...wled.summarize(await wled.getInfoAndState(dev.host)) };
+  return true;
+}
+
 async function pollWled(dev) {
+  let si;
   try {
-    const si = await wled.getInfoAndState(dev.host);
-    live.wled[dev.id] = { online: true, error: '', ...wled.summarize(si) };
+    si = await wled.getInfoAndState(dev.host);
   } catch (err) {
     const reason = err.name === 'TimeoutError' || err.message === 'fetch failed' ? 'sem resposta' : err.message;
     live.wled[dev.id] = { ...(live.wled[dev.id] ?? {}), online: false, error: reason };
+    segWatch.set(dev.id, { ok: false, uptime: 0 });
+    return;
   }
+  const sum = wled.summarize(si);
+  live.wled[dev.id] = { online: true, error: '', ...sum };
+  const prev = segWatch.get(dev.id);
+  const rebooted = prev?.ok && sum.uptime != null && sum.uptime < prev.uptime;
+  segWatch.set(dev.id, { ok: true, uptime: sum.uptime ?? 0 });
+  if (!prev?.ok || rebooted) {
+    try {
+      if (await enforceFrameMode(dev, si.state)) console.log(`[moldura] ${dev.id}: divisão "${dev.segmentMode}" reaplicada`);
+    } catch (err) {
+      segWatch.delete(dev.id); // tenta de novo no próximo ciclo
+      console.warn(`[moldura] ${dev.id}: ${err.message}`);
+    }
+  }
+}
+
+// Como a página vê cada WLED
+function deviceStatus(d) {
+  const l = live.wled[d.id] ?? {};
+  const frameMode = d.layout?.type === 'frame' && l.online ? wled.frameModeOf(l.segments, d.layout, l.leds) : null;
+  return { online: false, ...l, id: d.id, name: d.name || d.id, host: d.host, layout: d.layout, segmentMode: d.segmentMode ?? null, frameMode };
 }
 
 async function applySpeaker(cfg) {
@@ -130,11 +167,12 @@ const wrap = (fn) => (req, res) =>
 app.get('/api/status', (req, res) => {
   const cfg = store.get();
   res.json({
-    wled: cfg.wled.map((d) => ({ online: false, ...live.wled[d.id], id: d.id, name: d.name || d.id, host: d.host, layout: d.layout })),
+    wled: cfg.wled.map(deviceStatus),
     pc: { name: cfg.pc.name, configured: !!cfg.pc.host, ...live.pc },
     speaker: { enabled: cfg.speaker.enabled, mode: cfg.speaker.mode, ...live.speaker },
     openrgb: { enabled: cfg.openrgb.enabled, ...orgb.status() },
     favorites: cfg.favorites,
+    hub: { version: VERSION },
     updatedAt: live.updatedAt,
   });
 });
@@ -142,8 +180,15 @@ app.get('/api/status', (req, res) => {
 app.get('/api/config', (req, res) => res.json(store.get()));
 
 app.put('/api/config', wrap(async (req, res) => {
-  const errors = store.update(req.body);
+  const patch = req.body ?? {};
+  // A página de Ajustes não mexe na divisão da moldura (ela é escolhida no Controle): mantém a que já estava
+  if (Array.isArray(patch.wled)) {
+    const before = new Map(store.get().wled.map((d) => [d.id, d]));
+    patch.wled = patch.wled.map((d) => (d && d.segmentMode === undefined && before.get(d.id)?.segmentMode ? { ...d, segmentMode: before.get(d.id).segmentMode } : d));
+  }
+  const errors = store.update(patch);
   if (errors.length) return res.status(400).json({ errors });
+  segWatch.clear(); // o layout pode ter mudado: confere a divisão da moldura no próximo ciclo
   clearTimeout(timer);
   loop();
   res.json(store.get());
@@ -197,12 +242,28 @@ async function sendToWled(dev, cmd, quick = false) {
   if (!quick) await pollWled(dev);
 }
 
-// Comando para um WLED: { on, bri, color:[r,g,b], slot, fx, pal, sx, ix, c1, c2, c3, ps }
+// Comando para um WLED: { on, bri, color:[r,g,b], slot, fx, pal, sx, ix, c1, c2, c3, ps, lor }
 app.post('/api/wled/:id', wrap(async (req, res) => {
   const dev = findWled(req.params.id);
   if (!dev) return res.status(404).json({ error: 'WLED não encontrado' });
   await sendToWled(dev, req.body ?? {}, req.query.quick === '1');
-  res.json(live.wled[dev.id]);
+  res.json(deviceStatus(dev));
+}));
+
+// Junta os 4 lados numa moldura inteira (o efeito dá a volta na tela) ou separa de novo: { mode: "full" | "sides" }
+app.post('/api/wled/:id/frame', wrap(async (req, res) => {
+  const dev = findWled(req.params.id);
+  if (!dev) return res.status(404).json({ error: 'WLED não encontrado' });
+  const mode = req.body?.mode;
+  if (!['full', 'sides'].includes(mode)) return res.status(400).json({ error: 'mode deve ser full ou sides' });
+  if (dev.layout?.type !== 'frame') return res.status(400).json({ error: 'Só funciona em WLED com layout de moldura (veja em Ajustes)' });
+  const errors = store.update({ wled: store.get().wled.map((d) => (d.id === dev.id ? { ...d, segmentMode: mode } : d)) });
+  if (errors.length) return res.status(400).json({ errors });
+  // se o WLED estiver offline, a escolha fica salva e é aplicada quando ele voltar
+  const si = await wled.getInfoAndState(dev.host);
+  live.wled[dev.id] = { online: true, error: '', ...wled.summarize(si) };
+  await enforceFrameMode(findWled(dev.id), si.state);
+  res.json(deviceStatus(findWled(dev.id)));
 }));
 
 // Comando para tudo ao mesmo tempo (todos os WLED + cor no OpenRGB)
@@ -247,6 +308,6 @@ app.post('/api/openrgb/profile', wrap(async (req, res) => {
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 app.listen(PORT, () => {
-  console.log(`Escritório Hub em http://0.0.0.0:${PORT} (dados em ${DATA_DIR})`);
+  console.log(`Escritório Hub ${VERSION} em http://0.0.0.0:${PORT} (dados em ${DATA_DIR})`);
   loop();
 });
