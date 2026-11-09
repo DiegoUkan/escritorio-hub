@@ -8,6 +8,7 @@ Central de controle do escritório, rodando como container no servidor de casa (
 - **PC:** detecta se o PC gamer está ligado (abre uma conexão TCP numa porta do Windows, por padrão a 445).
 - **Caixa de som:** liga o relé (usermod *Multi Relay* do WLED) quando o PC liga e desliga depois de um tempo sem o PC. Também tem modo manual.
 - **OpenRGB:** conecta no servidor SDK do OpenRGB do PC para listar os dispositivos (RAM, placa-mãe, periféricos), pintar cores e carregar perfis.
+- **Tutorial:** passo a passo com links e comandos para preparar um PC novo (OpenRGB, WARP, ambilight, mouse), com progresso marcado no navegador. O conteúdo fica em `public/guide.html`.
 
 A interface fica em `http://IP-DO-SERVIDOR:8090` e funciona no computador e no celular.
 

@@ -3,6 +3,7 @@ import { $, $$, api, throttle, toast, vivid, dominant, rgbToHex, hexToRgb, setRa
 import { Stage, parseHexFrame } from './stage.js';
 import { Library } from './library.js';
 import { initSettings, loadSettings } from './settings.js';
+import { loadGuide } from './guide.js';
 
 const ALL = '__all__';
 const DEFAULT_ACCENT = [168, 85, 247];
@@ -450,7 +451,9 @@ function showView(view) {
   $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
   $('#view-control').hidden = view !== 'control';
   $('#view-settings').hidden = view !== 'settings';
+  $('#view-guide').hidden = view !== 'guide';
   if (view === 'settings') loadSettings().catch((e) => toast(e.message, true));
+  if (view === 'guide') loadGuide().catch((e) => toast(e.message, true));
   window.scrollTo({ top: 0 });
 }
 $$('.nav-btn').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));

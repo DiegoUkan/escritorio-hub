@@ -1,0 +1,88 @@
+<section class="panel guide-intro">
+  <header class="panel-head">
+    <h2><svg class="ico"><use href="#i-book"/></svg> Preparar o PC novo</h2>
+    <span id="guide-count" class="muted"></span>
+  </header>
+  <p>Siga na ordem. Marque cada passo ao terminar: o progresso fica salvo neste navegador.</p>
+  <div class="guide-bar" aria-hidden="true"><span id="guide-fill"></span></div>
+  <dl class="guide-facts">
+    <div><dt>Servidor (hub)</dt><dd>192.168.1.170:8090</dd></div>
+    <div><dt>WLED do monitor</dt><dd>192.168.1.251</dd></div>
+    <div><dt>LEDs da moldura</dt><dd>98 (base 34, direita 15, topo 34, esquerda 15)</dd></div>
+    <div><dt>Porta do OpenRGB</dt><dd>6742</dd></div>
+    <div><dt>Rede de casa</dt><dd>192.168.1.0/24</dd></div>
+  </dl>
+</section>
+
+<section class="panel">
+  <header class="panel-head"><h2><svg class="ico"><use href="#i-home"/></svg> 1. Rede do PC</h2></header>
+  <ol class="guide-steps">
+    <li><label><input type="checkbox" data-step="rede-ip"> <span><b>Reserve um IP fixo para o PC novo no roteador</b> e anote. É esse IP que vai nos Ajustes do hub.</span></label></li>
+    <li><label><input type="checkbox" data-step="rede-perfil"> <span><b>Deixe a rede do Windows como Privada.</b> Configurações &gt; Rede e Internet &gt; propriedades da conexão. Para conferir, rode <code>Get-NetConnectionProfile</code>: deve aparecer <code>Private</code>.</span></label></li>
+  </ol>
+</section>
+
+<section class="panel">
+  <header class="panel-head"><h2><svg class="ico"><use href="#i-zap"/></svg> 2. OpenRGB</h2></header>
+  <ol class="guide-steps">
+    <li><label><input type="checkbox" data-step="orgb-instalar"> <span><b>Instale o OpenRGB</b> pelo instalador <code>.msi</code> de 64 bits. <a href="https://openrgb.org/releases.html" target="_blank" rel="noopener">Baixar o OpenRGB</a></span></label></li>
+    <li><label><input type="checkbox" data-step="orgb-pawnio"> <span><b>Instale o PawnIO.</b> Sem ele, o OpenRGB não enxerga a RGB da memória e de algumas placas-mãe. <a href="https://pawnio.eu/" target="_blank" rel="noopener">Baixar o PawnIO</a></span></label></li>
+    <li><label><input type="checkbox" data-step="orgb-servico"> <span><b>Confira se o serviço existe:</b> rode <code>Get-Service OpenRGB</code>. Se a janela do OpenRGB mostra a aba <b>SDK Client</b>, é o serviço que está no comando e o bloco do próximo passo resolve. Se mostra <b>SDK Server</b>, não há serviço: use o host <code>0.0.0.0</code> nessa aba, clique em iniciar e crie só a regra de firewall do bloco.</span></label></li>
+    <li>
+      <label><input type="checkbox" data-step="orgb-script"> <span><b>Abra o PowerShell como administrador e rode o bloco.</b> Ele libera o serviço para a rede de casa e cria a regra de firewall. A janela do OpenRGB pode perder a conexão: é só abrir de novo.</span></label>
+      <div class="guide-code"><button class="btn ghost guide-copy" type="button"><svg class="ico"><use href="#i-copy"/></svg> Copiar</button><pre><code>$f = 'C:\Program Files\OpenRGB\service_config\OpenRGB.json'
+Start-Service OpenRGB
+Start-Sleep 5
+Stop-Service OpenRGB
+Copy-Item $f "$f.bak"
+$t = [IO.File]::ReadAllText($f) -replace '"default_host":\s*"127\.0\.0\.1"', '"default_host": "0.0.0.0"'
+[IO.File]::WriteAllText($f, $t, (New-Object Text.UTF8Encoding $false))
+New-NetFirewallRule -DisplayName "OpenRGB SDK" -Direction Inbound -Protocol TCP -LocalPort 6742 -Action Allow -Profile Private,Domain -RemoteAddress 192.168.1.0/24
+Start-Service OpenRGB
+netstat -ano | findstr 6742</code></pre></div>
+    </li>
+    <li><label><input type="checkbox" data-step="orgb-porta"> <span><b>Confira o resultado:</b> no final deve aparecer <code>0.0.0.0:6742 LISTENING</code>. Com <code>127.0.0.1:6742</code>, o hub não alcança o PC.</span></label></li>
+    <li><label><input type="checkbox" data-step="orgb-hub"> <span><b>Atualize o hub em Ajustes:</b> em OpenRGB, marque a conexão e coloque o IP do PC novo com a porta 6742. Em PC, use o mesmo IP e a porta 6742. Salve.</span></label></li>
+    <li><label><input type="checkbox" data-step="orgb-ok"> <span><b>Volte em Controle</b> e veja se o OpenRGB aparece conectado, com os dispositivos do PC novo.</span></label></li>
+  </ol>
+  <p class="guide-note"><b>Importante:</b> a tela Settings &gt; Server da janela não muda o serviço. Ele usa o próprio arquivo, em <code>C:\Program Files\OpenRGB\service_config\OpenRGB.json</code>. O bloco acima edita esse arquivo.</p>
+</section>
+
+<section class="panel">
+  <header class="panel-head"><h2><svg class="ico"><use href="#i-layers"/></svg> 3. Cloudflare WARP</h2></header>
+  <p class="guide-note warn"><b>Só vale se o WARP for instalado no PC novo.</b> A política atual manda o servidor (<code>192.168.1.170/32</code>) pelo túnel, e com isso o hub dá <code>timeout</code> ao tentar falar com o PC. Com o WARP desconectado, a conexão funcionou.</p>
+  <ol class="guide-steps">
+    <li><label><input type="checkbox" data-step="warp-perfil"> <span><b>No painel do Zero Trust, use para este PC um perfil de dispositivo sem o <code>192.168.1.170/32</code></b> em Split Tunnels. Assim os outros aparelhos continuam usando o túnel para chegar ao servidor. <a href="https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/configure/route-traffic/" target="_blank" rel="noopener">Como configurar o Split Tunnel</a></span></label></li>
+    <li><label><input type="checkbox" data-step="warp-rede"> <span><b>Se o PC também precisar do túnel fora de casa,</b> aplique esse perfil só na rede de casa, com um <em>managed network</em>. <a href="https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/configure/managed-networks/" target="_blank" rel="noopener">Como criar um managed network</a></span></label></li>
+    <li><label><input type="checkbox" data-step="warp-teste"> <span><b>Com o WARP ligado, confira o hub.</b> O OpenRGB tem que continuar conectado. Para ver as rotas aplicadas, rode <code>warp-cli settings</code>.</span></label></li>
+  </ol>
+</section>
+
+<section class="panel">
+  <header class="panel-head"><h2><svg class="ico"><use href="#i-sun"/></svg> 4. Ambilight (tela nos LEDs)</h2></header>
+  <p class="muted guide-lead">O HyperHDR captura a tela do PC e manda as cores para o WLED pela rede. Os nomes dos menus podem mudar um pouco entre versões.</p>
+  <ol class="guide-steps">
+    <li><label><input type="checkbox" data-step="amb-instalar"> <span><b>Instale o HyperHDR</b> (arquivo <code>Windows-AMD64.exe</code>). <a href="https://github.com/awawa-dev/HyperHDR/releases" target="_blank" rel="noopener">Baixar o HyperHDR</a> · <a href="https://github.com/awawa-dev/HyperHDR/wiki/Installation" target="_blank" rel="noopener">Instalação</a></span></label></li>
+    <li><label><input type="checkbox" data-step="amb-wled"> <span><b>Abra a interface dele</b> (no próprio PC, normalmente <code>http://localhost:8090</code>). Em LED Hardware, escolha o controlador <b>wled</b>, com o IP <code>192.168.1.251</code> e 98 LEDs. O assistente de configuração do WLED pode encontrar o aparelho sozinho.</span></label></li>
+    <li><label><input type="checkbox" data-step="amb-layout"> <span><b>Monte o layout:</b> base 34, direita 15, topo 34, esquerda 15. A fita começa no canto inferior esquerdo, segue pela base para a direita, sobe pela direita, volta pelo topo e desce pela esquerda. Ajuste a posição inicial e o sentido até bater com a prévia.</span></label></li>
+    <li><label><input type="checkbox" data-step="amb-captura"> <span><b>Ligue a captura de tela.</b> Na aba Video capturing, configure o DirectX e salve. Depois ative <code>enable system capture</code>, salve de novo e confira a prévia. <a href="https://hyperhdr-wiki.pages.dev/Software-screen-capture" target="_blank" rel="noopener">Captura de tela</a></span></label></li>
+    <li><label><input type="checkbox" data-step="amb-teste"> <span><b>Teste com um vídeo</b> e coloque o HyperHDR para iniciar com o Windows, se gostar do resultado.</span></label></li>
+  </ol>
+  <p class="guide-note">Enquanto o ambilight transmite, o WLED fica em modo ao vivo e os efeitos escolhidos no hub não aparecem. Ao parar a transmissão, o WLED volta sozinho. <a href="https://kno.wled.ge/interfaces/udp-realtime/" target="_blank" rel="noopener">Tempo real no WLED</a></p>
+</section>
+
+<section class="panel">
+  <header class="panel-head"><h2><svg class="ico"><use href="#i-cpu"/></svg> 5. Mouse Redragon M801P-RGB</h2></header>
+  <p class="guide-note warn"><b>O OpenRGB não controla este mouse hoje.</b> Ele aparece no Windows como <code>25A7:FA09</code>, e o OpenRGB só conhece mouses Redragon do fabricante USB <code>04D9</code>. O item "Redragon M801 Sniper" da lista dele é outro modelo (<code>04D9:FC58</code>).</p>
+  <ol class="guide-steps">
+    <li><label><input type="checkbox" data-step="mouse-soft"> <span><b>Instale o software oficial da Redragon</b> para escolher a cor e os botões. Use o mouse com fio ou no receptor 2.4G, porque o software não funciona por Bluetooth. <a href="https://redragonshop.com/blogs/product-download/redragon-sniper-pro-m801p-rgb-gaming-mice" target="_blank" rel="noopener">Baixar o software do M801P-RGB</a></span></label></li>
+    <li><label><input type="checkbox" data-step="mouse-recheck"> <span><b>Ao atualizar o OpenRGB,</b> veja se o M801P passou a ser detectado. <a href="https://gitlab.com/CalcProgrammer1/OpenRGB/-/issues" target="_blank" rel="noopener">Pedidos de suporte no OpenRGB</a></span></label></li>
+  </ol>
+</section>
+
+<section class="panel guide-idea">
+  <header class="panel-head"><h2><svg class="ico"><use href="#i-music"/></svg> Ideias guardadas</h2><span class="chip">Para depois</span></header>
+  <h3>Som do PC pela rede</h3>
+  <p>Mandar o áudio do PC pela rede para tocar em outro aparelho. Ainda não é para aplicar.</p>
+  <p class="muted">Ponto de partida: o <a href="https://github.com/duncanthrax/scream" target="_blank" rel="noopener">Scream</a>, uma placa de som virtual com receptores para Linux, Windows e ESP32. No Windows 11, ele pede instalação manual com o modo de teste ativado, então vale comparar com outras opções antes de escolher.</p>
+</section>
