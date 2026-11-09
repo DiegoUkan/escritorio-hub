@@ -127,11 +127,12 @@ netstat -ano | findstr 6742</code></pre>
       <p>O HyperHDR é gratuito e open source. Ele captura a tela do PC e manda as cores para o WLED da moldura pela rede. Enquanto ele manda, o WLED mostra as cores da tela; quando para (PC desligado ou HyperHDR fechado), o WLED volta sozinho para o efeito de antes.</p>
       <h3>Instalar e configurar</h3>
       <ol class="guide-steps">
-        <li>Baixe o instalador para Windows (<code>HyperHDR-…-Windows-AMD64.exe</code>) em <a href="https://github.com/awawa-dev/HyperHDR/releases" target="_blank" rel="noopener">github.com/awawa-dev/HyperHDR/releases</a> e instale.</li>
+        <li>Baixe o instalador para Windows: <a href="https://github.com/awawa-dev/HyperHDR/releases/download/v22.0.0.0/HyperHDR-22.0.0-Windows-AMD64.exe" target="_blank" rel="noopener">HyperHDR-22.0.0-Windows-AMD64.exe</a> (versão 22). Para ver se saiu versão mais nova, abra as <a href="https://github.com/awawa-dev/HyperHDR/releases" target="_blank" rel="noopener">releases do HyperHDR</a>. A lista de arquivos vem cortada e só mostra os de Linux e macOS: clique em <b>Show all … assets</b> embaixo dela e procure o que termina em <code>-Windows-AMD64.exe</code>.</li>
         <li>Abra pelo atalho. Clique com o botão direito no ícone da bandeja → <b>Settings</b> para abrir o painel no navegador (no próprio PC, normalmente <code>http://localhost:8090</code>).</li>
         <li><b>LED hardware:</b> controlador <b>WLED</b>, endereço <code data-fill="monitor-ip">192.168.1.251</code>, <b>98</b> LEDs.</li>
         <li><b>Layout:</b> clássico, <b>34</b> em cima, <b>34</b> embaixo e <b>15</b> em cada lateral. A fita começa no canto inferior esquerdo e vai para a direita pela base, sobe pela direita, volta pelo topo e desce pela esquerda. Use a prévia do layout para achar o LED 0 e ajuste a posição inicial e a direção até bater com a fita.</li>
-        <li><b>Captura:</b> em Video capturing, configure o DirectX, escolha o monitor do meio e salve. Depois ative <b>enable system capture</b>, salve de novo e confira a prévia com um vídeo.</li>
+        <li><b>Captura:</b> na aba <b>Video capturing</b>, desligue a captura USB na parte de cima e salve. Com ela ligada, o HyperHDR pega a webcam em vez da tela. Depois desça até a parte do <b>DirectX</b>, escolha o monitor do meio e salve. Por fim, ative <b>enable system capture</b>, salve de novo e confira a prévia com um vídeo.</li>
+        <li><b>HDR:</b> deixe o <b>HDR to SDR tone mapping</b> desligado, a não ser que o HDR do Windows esteja ligado. Com a tela em SDR, ele deixa as cores lavadas (azul escuro vira azul bebê).</li>
         <li><b>Iniciar com o Windows:</b> aperte <kbd>Win</kbd>+<kbd>R</kbd>, digite <code>shell:startup</code> e copie o atalho do HyperHDR para essa pasta.</li>
       </ol>
       <h3>No hub</h3>
@@ -158,7 +159,7 @@ netstat -ano | findstr 6742</code></pre>
         <a data-fill-href="monitor-url" href="http://192.168.1.251" target="_blank" rel="noopener"><strong>WLED da mesa</strong><span>interface própria do ESP32</span></a>
         <a href="https://kno.wled.ge/" target="_blank" rel="noopener"><strong>Documentação do WLED</strong><span>kno.wled.ge</span></a>
         <a href="https://openrgb.org/releases.html" target="_blank" rel="noopener"><strong>OpenRGB</strong><span>downloads e versões</span></a>
-        <a href="https://github.com/awawa-dev/HyperHDR/releases" target="_blank" rel="noopener"><strong>HyperHDR</strong><span>Ambilight para Windows</span></a>
+        <a href="https://github.com/awawa-dev/HyperHDR/releases/download/v22.0.0.0/HyperHDR-22.0.0-Windows-AMD64.exe" target="_blank" rel="noopener"><strong>HyperHDR 22 para Windows</strong><span>instalador .exe do Ambilight</span></a>
         <a href="https://github.com/Victoare/SR-WLED-audio-server-win" target="_blank" rel="noopener"><strong>WledSRServer</strong><span>som do PC para o WLED</span></a>
         <a href="https://one.dash.cloudflare.com/" target="_blank" rel="noopener"><strong>Cloudflare Zero Trust</strong><span>perfis do WARP</span></a>
         <a href="https://redragonshop.com/blogs/product-download/redragon-sniper-pro-m801p-rgb-gaming-mice" target="_blank" rel="noopener"><strong>Software Redragon</strong><span>luz do mouse M801P-RGB</span></a>
