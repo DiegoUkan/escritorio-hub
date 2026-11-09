@@ -13,14 +13,21 @@ A interface fica em `http://IP-DO-SERVIDOR:8090` e funciona no computador e no c
 
 ## Instalar no CasaOS
 
-1. A cada push na `main`, o GitHub Actions roda os testes e publica a imagem `ghcr.io/diegoukan/escritorio-hub:latest`.
+1. A cada push na `main`, o GitHub Actions roda os testes e publica a imagem `ghcr.io/diegoukan/escritorio-hub` com a tag da versão do `package.json` (ex.: `0.2.0`) e com `latest`.
 2. Na primeira vez, deixe o pacote público para o CasaOS conseguir baixar sem login:
    GitHub → seu perfil → **Packages** → `escritorio-hub` → **Package settings** → **Change visibility** → Public.
    (O código continua privado; só a imagem fica pública.)
 3. No CasaOS: **App Store** → **+** → **Install a customized app** → **Import** → cole o conteúdo de [`docker-compose.yml`](docker-compose.yml) → Install.
-4. Para atualizar: no CasaOS, abra o app e use **Update** (ele baixa a `latest` de novo).
 
-As configurações e os favoritos ficam em `/DATA/AppData/escritorio-hub/config.json` no servidor e não se perdem ao atualizar.
+### Atualizar (sem terminal)
+
+O botão de atualizar do CasaOS não serve para este app: ele não procura versão nova de imagens com a tag `latest`, nem de apps instalados fora da loja. Por isso cada versão ganha a própria tag, e atualizar é trocar essa tag:
+
+1. No painel do CasaOS, abra o menu do app (⋮) → **Settings**.
+2. No campo da tag da imagem, troque pela versão nova (ex.: `0.2.0` → `0.3.0`). Se ainda estiver `latest`, troque pela versão atual.
+3. Clique em **Save**. O CasaOS baixa a imagem nova e recria o container.
+
+A versão que está rodando aparece em **Ajustes** → **Geral**. As configurações e os favoritos ficam em `/DATA/AppData/escritorio-hub/config.json` no servidor e não se perdem ao atualizar.
 
 ## Configuração
 

@@ -70,6 +70,8 @@ test('hub controla WLED, caixa de som, listas, favoritos e prévia ao vivo', asy
   assert.equal(status.wled[0].leds, 98);
   assert.deepEqual(status.wled[0].layout, { type: 'frame', bottom: 34, right: 15, top: 34, left: 15 }, 'config antiga ganha o layout da moldura');
   assert.ok(status.favorites.effects.includes('Aurora'));
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(status.hub.version, pkg.version, 'a página mostra a versão do hub');
   assert.equal(wled.relays[0], true, 'ligou o relé porque o PC está online');
 
   // cor, brilho e efeito em todos os segmentos

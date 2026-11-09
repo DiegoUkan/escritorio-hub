@@ -1,5 +1,6 @@
 // Escritório Hub: página web + API que controla os WLED, o OpenRGB e a caixa de som.
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ConfigStore } from './config.js';
@@ -14,6 +15,7 @@ const PORT = Number(process.env.PORT || 8090);
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const MODULES = path.join(ROOT, '..', 'node_modules');
+const VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, '..', 'package.json'), 'utf8')).version;
 const LISTS_TTL_MS = 60 * 60 * 1000;
 
 const store = new ConfigStore(DATA_DIR);
@@ -135,6 +137,7 @@ app.get('/api/status', (req, res) => {
     speaker: { enabled: cfg.speaker.enabled, mode: cfg.speaker.mode, ...live.speaker },
     openrgb: { enabled: cfg.openrgb.enabled, ...orgb.status() },
     favorites: cfg.favorites,
+    hub: { version: VERSION },
     updatedAt: live.updatedAt,
   });
 });
@@ -247,6 +250,6 @@ app.post('/api/openrgb/profile', wrap(async (req, res) => {
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 app.listen(PORT, () => {
-  console.log(`Escritório Hub em http://0.0.0.0:${PORT} (dados em ${DATA_DIR})`);
+  console.log(`Escritório Hub ${VERSION} em http://0.0.0.0:${PORT} (dados em ${DATA_DIR})`);
   loop();
 });

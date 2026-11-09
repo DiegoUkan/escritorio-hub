@@ -407,6 +407,7 @@ function render() {
   renderStage(dev, meta);
   renderControls(dev, meta);
   renderSystem(st);
+  if (st.hub) $('#hub-version').textContent = st.hub.version;
   library.setOffline(!dev?.online);
   library.setLists(listsOf(dev));
   library.setFavorites(st.favorites);

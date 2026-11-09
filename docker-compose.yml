@@ -1,8 +1,10 @@
 # Para instalar no CasaOS: App Store -> "+" (Custom Install) -> Import -> cole este arquivo.
+# Para atualizar: no CasaOS, abra as configurações (Settings) do app, troque a tag da imagem
+# pela versão nova (ex.: 0.2.0 -> 0.3.0) e salve. O CasaOS não procura atualização de "latest".
 name: escritorio-hub
 services:
   escritorio-hub:
-    image: ghcr.io/diegoukan/escritorio-hub:latest
+    image: ghcr.io/diegoukan/escritorio-hub:0.2.0
     container_name: escritorio-hub
     restart: unless-stopped
     # rede do host: o hub enxerga a rede de casa (nomes .local, PC, ESPs) como o servidor enxerga
