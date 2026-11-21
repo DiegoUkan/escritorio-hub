@@ -2,6 +2,8 @@ FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=8090 DATA_DIR=/data
 COPY package.json package-lock.json ./
+# o postinstall corrige o openrgb-sdk, então o script precisa estar aqui antes do npm ci
+COPY scripts ./scripts
 RUN npm ci --omit=dev && npm cache clean --force
 COPY src ./src
 COPY public ./public
