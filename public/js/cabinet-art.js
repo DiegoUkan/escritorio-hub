@@ -51,10 +51,13 @@ export const CABINET_ART = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.or
 // Mapa sugerido para o desenho padrão (o do escritório): o usuário confere com "Acender" e ajusta.
 // Coordenadas normalizadas (u = x / 344, v = y / 308).
 const n = (x, y) => [Math.round((x / W) * 10000) / 10000, Math.round((y / H) * 10000) / 10000];
+// No PC do escritório: cada fan tem 6 LEDs em barras nas laterais, e a barra da esquerda repete a da
+// direita. Os 2 fans da lateral (barras em pé) ficam no JARGB 2 e os 3 da base (esquerda → direita) no
+// JARGB 1, todos em paralelo (cópias). O fan traseiro não está em nenhum conector.
+const bar = (a, b) => ({ shape: 'line', to: 6, pts: [n(...a), n(...b)] });
 export const SUGGESTED = {
   DRAM: [{ shape: 'line', pts: [n(182, 44), n(182, 100)] }],
-  JAF: [{ shape: 'rect', pts: [n(29, 39), n(79, 89)] }],
-  'JARGB 1': [{ shape: 'rect', pts: [n(242, 28), n(326, 112)] }, { shape: 'rect', pts: [n(242, 128), n(326, 212)] }],
-  'JARGB 2': [{ shape: 'line', pts: [n(25, 263), n(79, 263)] }, { shape: 'line', pts: [n(90, 263), n(144, 263)] }, { shape: 'line', pts: [n(155, 263), n(209, 263)] }],
+  'JARGB 1': [bar([25, 263], [79, 263]), bar([90, 263], [144, 263]), bar([155, 263], [209, 263])],
+  'JARGB 2': [bar([242, 108], [242, 32]), bar([326, 108], [326, 32]), bar([242, 208], [242, 132]), bar([326, 208], [326, 132])],
   'JARGB 3': [{ shape: 'ring', pts: [n(137, 78), n(137, 63)] }],
 };
