@@ -166,6 +166,24 @@ test('validateConfig confere o bloco do gabinete', () => {
   for (const part of ['cabinet.mode', 'cabinet.order', 'cabinet.maxFps', 'shape', 'from/to', 'pts', 'cabinet.paint']) assert.match(errs, new RegExp(part.replace('.', '\\.')));
 });
 
+test('CabinetEngine: o Ambilight do gabinete usa o brilho do WLED (a prévia ao vivo vem sem ele)', () => {
+  const sent = [];
+  const engine = new CabinetEngine({ output: (id, colors) => sent.push([id, colors]) });
+  const cfg = mergeConfig(DEFAULT_CONFIG.cabinet, {
+    enabled: true,
+    aspect: 1,
+    zones: [{ device: 'ENE DRAM', zone: 'DRAM', places: [{ from: 0, to: 2, shape: 'line', pts: [[0.5, 0.5], [0.5, 0.5]] }] }],
+  });
+  engine.configure(cfg, DEVICES);
+  clearInterval(engine.timer);
+  const layout = { bottom: 1, right: 2, top: 1, left: 2 };
+  const frame = new Uint8Array(6 * 3).fill(200);
+  engine.setMolduraAmbi(true);
+  engine.setMoldura(frame, layout, 51); // brilho 20%
+  engine.tick();
+  assert.deepEqual(sent.find(([id]) => id === 0)[1], [[40, 40, 40], [40, 40, 40]]);
+});
+
 test('CabinetEngine: DDP vira cor por LED física, só manda o que mudou e cede ao Ambilight e ao Acender', () => {
   const sent = [];
   const engine = new CabinetEngine({ output: (id, colors) => sent.push([id, colors]) });

@@ -108,7 +108,8 @@ function updateCabinetLive(dev) {
   const want = ambi && c.ambilight && dev.layout?.type === 'frame';
   if (want && watchingId !== dev.id) {
     unwatchMoldura?.();
-    unwatchMoldura = streamFor(dev.id).watch((bytes) => cabinet.setMoldura(bytes, findWled(dev.id)?.layout));
+    // state.bri continua valendo no Ambilight (o WLED volta a esse brilho quando a tela começa a chegar)
+    unwatchMoldura = streamFor(dev.id).watch((bytes) => cabinet.setMoldura(bytes, findWled(dev.id)?.layout, live.wled[dev.id]?.bri ?? 255));
     watchingId = dev.id;
   } else if (!want && unwatchMoldura) {
     unwatchMoldura();

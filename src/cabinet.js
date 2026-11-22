@@ -147,8 +147,10 @@ export class CabinetEngine {
     this.sent.clear();
   }
 
-  setMoldura(frame, layout) {
-    this.mold = { frame, layout, at: Date.now() };
+  // A prévia ao vivo do WLED (websocket "lv") vem SEM o brilho aplicado, ao contrário do DDP.
+  // bri = brilho do WLED (0-255), para o gabinete ficar com a mesma intensidade da moldura.
+  setMoldura(frame, layout, bri = 255) {
+    this.mold = { frame, layout, at: Date.now(), scale: Math.min(255, Math.max(0, Number(bri) || 0)) / 255 };
   }
 
   setMolduraAmbi(on) {
@@ -188,7 +190,8 @@ export class CabinetEngine {
     }
     this.ident = null;
     if (this.ambilightActive) {
-      const target = ambilightColors(this.leds, this.mold.frame, this.mold.layout);
+      const k = this.mold.scale ?? 1;
+      const target = ambilightColors(this.leds, this.mold.frame, this.mold.layout).map((c) => c.map((v) => Math.round(v * k)));
       // a prévia do WLED chega a ~12 quadros/s: suaviza para não piscar
       const prev = this.current && this.source === 'ambilight' ? this.current : target;
       target.forEach((c, i) => (out[i] = c.map((v, k) => Math.round(prev[i][k] + (v - prev[i][k]) * 0.35))));
