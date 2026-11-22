@@ -53,11 +53,18 @@ export const CABINET_ART = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.or
 const n = (x, y) => [Math.round((x / W) * 10000) / 10000, Math.round((y / H) * 10000) / 10000];
 // No PC do escritório: cada fan tem 6 LEDs em barras nas laterais, e a barra da esquerda repete a da
 // direita. Os 2 fans da lateral (barras em pé) ficam no JARGB 2 e os 3 da base (esquerda → direita) no
-// JARGB 1, todos em paralelo (cópias). O fan traseiro não está em nenhum conector.
+// JARGB 1, todos em paralelo (cópias). O JARGB 3 repete o mesmo sinal na bomba do processador, no
+// centro do fan traseiro e no centro dos 3 fans do topo (embaixo do radiador).
 const bar = (a, b) => ({ shape: 'line', to: 6, pts: [n(...a), n(...b)] });
 export const SUGGESTED = {
   DRAM: [{ shape: 'line', pts: [n(182, 44), n(182, 100)] }],
   'JARGB 1': [bar([25, 263], [79, 263]), bar([90, 263], [144, 263]), bar([155, 263], [209, 263])],
   'JARGB 2': [bar([242, 108], [242, 32]), bar([326, 108], [326, 32]), bar([242, 208], [242, 132]), bar([326, 208], [326, 132])],
-  'JARGB 3': [{ shape: 'ring', pts: [n(137, 78), n(137, 63)] }],
+  'JARGB 3': [
+    { shape: 'ring', pts: [n(137, 78), n(137, 63)] },
+    { shape: 'ring', pts: [n(54, 64), n(54, 55)] },
+    { shape: 'line', pts: [n(36, 32), n(66, 32)] },
+    { shape: 'line', pts: [n(101, 32), n(131, 32)] },
+    { shape: 'line', pts: [n(166, 32), n(196, 32)] },
+  ],
 };
