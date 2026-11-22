@@ -60,11 +60,12 @@ export const SUGGESTED = {
   DRAM: [{ shape: 'line', pts: [n(182, 44), n(182, 100)] }],
   'JARGB 1': [bar([25, 263], [79, 263]), bar([90, 263], [144, 263]), bar([155, 263], [209, 263])],
   'JARGB 2': [bar([242, 108], [242, 32]), bar([326, 108], [326, 32]), bar([242, 208], [242, 132]), bar([326, 208], [326, 132])],
+  // a bomba tem 8 LEDs; os centros dos fans, 6 (os LEDs 9-12 da zona não existem)
   'JARGB 3': [
-    { shape: 'ring', pts: [n(137, 78), n(137, 63)] },
-    { shape: 'ring', pts: [n(54, 64), n(54, 55)] },
-    { shape: 'line', pts: [n(36, 32), n(66, 32)] },
-    { shape: 'line', pts: [n(101, 32), n(131, 32)] },
-    { shape: 'line', pts: [n(166, 32), n(196, 32)] },
+    { shape: 'ring', to: 8, pts: [n(137, 78), n(137, 63)] },
+    { shape: 'ring', to: 6, pts: [n(54, 64), n(54, 55)] },
+    { shape: 'line', to: 6, pts: [n(36, 32), n(66, 32)] },
+    { shape: 'line', to: 6, pts: [n(101, 32), n(131, 32)] },
+    { shape: 'line', to: 6, pts: [n(166, 32), n(196, 32)] },
   ],
 };
