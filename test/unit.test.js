@@ -135,8 +135,8 @@ test('buildPalettes monta as paradas de cor de cada paleta', () => {
 });
 
 test('decodeLiveFrame lê o quadro binário do WLED', () => {
-  assert.deepEqual(decodeLiveFrame(Uint8Array.from([0x4c, 1, 255, 0, 16, 1, 2, 3])), { hex: 'ff0010010203', w: 0, h: 0 });
-  assert.deepEqual(decodeLiveFrame(Uint8Array.from([0x4c, 2, 2, 1, 9, 9, 9, 8, 8, 8])), { hex: '090909080808', w: 2, h: 1 });
+  assert.deepEqual(decodeLiveFrame(Uint8Array.from([0x4c, 1, 255, 0, 16, 1, 2, 3])), { hex: 'ff0010010203', bytes: Uint8Array.from([255, 0, 16, 1, 2, 3]), w: 0, h: 0 });
+  assert.deepEqual(decodeLiveFrame(Uint8Array.from([0x4c, 2, 2, 1, 9, 9, 9, 8, 8, 8])), { hex: '090909080808', bytes: Uint8Array.from([9, 9, 9, 8, 8, 8]), w: 2, h: 1 });
   assert.equal(decodeLiveFrame(Uint8Array.from([0x7b, 0x22])), null);
 });
 

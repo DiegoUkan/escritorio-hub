@@ -31,6 +31,7 @@
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-case" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="9" r="3"/><circle cx="12" cy="16" r="2"/></symbol>
   </svg>
 
   <header class="topbar">
@@ -98,6 +99,43 @@
           <span class="sw" aria-hidden="true"><i></i></span>
           <span class="frame-switch-text"><strong>Moldura inteira</strong><small id="frame-sub">o efeito dá a volta na tela toda</small></span>
         </label>
+      </div>
+    </section>
+
+    <section class="panel cab-panel" id="cab-panel" hidden>
+      <header class="panel-head">
+        <h2><svg class="ico"><use href="#i-case"/></svg> Gabinete</h2>
+        <span class="pill" id="cab-pill">—</span>
+      </header>
+      <div class="cab-layout">
+        <div class="cab-stage-wrap"><div id="cab-stage"></div></div>
+        <div class="cab-side">
+          <div id="cab-cta-box" class="cab-cta" hidden>
+            <p class="muted">As LEDs do PC podem virar LEDs do WLED: rodam os mesmos efeitos, aparecem aqui ao vivo, dá para pintar por posição e o Ambilight passa para o gabinete.</p>
+            <button class="btn primary" id="cab-cta">Configurar o gabinete</button>
+          </div>
+          <div id="cab-controls">
+            <div class="segmented" id="cab-mode" role="radiogroup" aria-label="Modo do gabinete">
+              <button data-mode="follow" role="radio">Igual à moldura</button>
+              <button data-mode="paint" role="radio">Pintura</button>
+            </div>
+            <label class="frame-switch" title="Com a moldura no Ambilight (HyperHDR), cada LED do gabinete copia a cor do lado direito da tela, na mesma altura.">
+              <input type="checkbox" id="cab-ambi">
+              <span class="sw" aria-hidden="true"><i></i></span>
+              <span class="frame-switch-text"><strong>Ambilight no gabinete</strong><small id="cab-ambi-sub">lado direito da tela</small></span>
+            </label>
+            <div class="cab-paint">
+              <div class="cab-paint-head"><span>Pincel</span><input type="color" id="cab-color" aria-label="Cor do pincel"></div>
+              <div class="swatches cab-swatches" id="cab-swatches"></div>
+              <label class="cab-brush">Tamanho <input type="range" class="range" id="cab-brush" min="2" max="20" value="6" aria-label="Tamanho do pincel"></label>
+              <div class="cab-paint-actions">
+                <button class="btn ghost" id="cab-fill">Pintar tudo</button>
+                <button class="btn ghost" id="cab-clear">Apagar</button>
+              </div>
+            </div>
+            <p class="muted" id="cab-note"></p>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -174,6 +212,40 @@
       <p class="muted">Cada ESP32 com WLED. Use o IP (reserve no roteador). O layout desenha a prévia ao vivo: na moldura, a fita começa no canto inferior esquerdo, vai para a direita pela base, sobe pela direita, volta pelo topo e desce pela esquerda.</p>
       <div id="cfg-wled" class="cfg-wled"></div>
       <button id="cfg-wled-add" class="btn ghost"><svg class="ico"><use href="#i-plus"/></svg> Adicionar WLED</button>
+    </section>
+    <section class="panel" id="cfg-cabinet">
+      <header class="panel-head"><h2><svg class="ico"><use href="#i-case"/></svg> Gabinete (LEDs do PC no WLED)</h2></header>
+      <p class="muted">As LEDs do OpenRGB entram no fim da fita do WLED como LEDs virtuais: o WLED roda os efeitos nelas e manda as cores para o hub (DDP), que pinta o PC pela posição de cada LED no mapa.</p>
+      <div class="cab-cfg-top">
+        <label class="check"><input type="checkbox" id="cab-enabled"> Ativar o gabinete</label>
+        <label class="field">WLED <select id="cab-wled"></select></label>
+        <label class="field">Ordem dos efeitos
+          <select id="cab-order">
+            <option value="up">De baixo para cima</option>
+            <option value="right">Da esquerda para a direita</option>
+            <option value="around">Em volta do gabinete</option>
+            <option value="wire">Ordem dos cabos</option>
+          </select>
+        </label>
+        <label class="field">Quadros por segundo <input id="cab-fps" type="number" min="5" max="60"></label>
+        <label class="check"><input type="checkbox" id="cab-ambilight"> Ambilight no gabinete (lado direito da tela)</label>
+      </div>
+      <div class="cab-wled-row">
+        <span id="cab-wled-state" class="muted"></span>
+        <button class="btn ghost" id="cab-setup">Configurar no WLED</button>
+      </div>
+      <div class="cab-editor">
+        <div class="cab-editor-main">
+          <div class="cab-stage-wrap"><div id="cab-edit-stage"></div></div>
+          <div class="cab-photo-row">
+            <label class="btn ghost"><input type="file" id="cab-photo" accept="image/jpeg,image/png,image/webp" hidden> Enviar foto do PC</label>
+            <button class="btn ghost" id="cab-photo-reset">Usar o desenho</button>
+            <button class="btn ghost" id="cab-suggest">Sugerir mapa</button>
+          </div>
+          <p class="muted" id="cab-edit-hint"></p>
+        </div>
+        <div class="cab-zones" id="cab-zones"></div>
+      </div>
     </section>
     <div class="cfg-grid">
       <section class="panel">

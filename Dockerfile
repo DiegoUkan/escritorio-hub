@@ -9,5 +9,7 @@ COPY src ./src
 COPY public ./public
 VOLUME /data
 EXPOSE 8090
+# LEDs do gabinete chegando do WLED por DDP (com network_mode: host não precisa mapear)
+EXPOSE 4048/udp
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:${PORT}/healthz || exit 1
 CMD ["node", "src/server.js"]

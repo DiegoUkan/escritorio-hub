@@ -4,6 +4,7 @@ import { Stage, parseHexFrame } from './stage.js';
 import { Library } from './library.js';
 import { initSettings, loadSettings } from './settings.js';
 import { loadGuide } from './guide.js';
+import { CabinetPanel } from './cabinet.js';
 
 const ALL = '__all__';
 const DEFAULT_ACCENT = [168, 85, 247];
@@ -429,7 +430,8 @@ function renderOpenRGB(o) {
   const body = $('#openrgb-body');
   pill.innerHTML = !o.enabled ? 'desativado' : `<i class="dot ${o.connected ? 'ok' : 'warn'}"></i>${o.connected ? 'conectado' : 'desconectado'}`;
   pill.className = `pill ${o.enabled ? (o.connected ? 'ok' : 'warn') : ''}`;
-  const key = JSON.stringify([o.enabled, o.connected, o.error, o.devices, o.profiles]);
+  const cabOn = !!S.status?.cabinet?.enabled;
+  const key = JSON.stringify([o.enabled, o.connected, o.error, o.devices, o.profiles, cabOn]);
   if (key === orgbKey) return;
   orgbKey = key;
   if (!o.enabled) {
@@ -438,6 +440,12 @@ function renderOpenRGB(o) {
   }
   if (!o.connected) {
     body.innerHTML = `<p class="muted">Não consegui conectar${o.error ? ` (${escapeHtml(o.error)})` : ''}. O PC está ligado e o servidor SDK do OpenRGB aceita conexões da rede?</p>`;
+    return;
+  }
+  // com o gabinete ativo, quem pinta o PC é o painel Gabinete (cor e perfil daqui seriam sobrescritos)
+  if (cabOn) {
+    body.innerHTML = `<div class="orgb-list">${o.devices.map((d) => `<div class="orgb-row"><span>${escapeHtml(d.name)} <small>· ${d.leds} LEDs</small></span></div>`).join('')}</div>
+      <p class="muted">As LEDs seguem o painel Gabinete.</p>`;
     return;
   }
   const rows = o.devices.length
@@ -466,6 +474,7 @@ function render() {
   renderStage(dev, meta);
   renderControls(dev, meta);
   renderSystem(st);
+  if (st.cabinet) cabinetPanel.update(st);
   if (st.hub) $('#hub-version').textContent = st.hub.version;
   library.setOffline(!dev?.online);
   library.setLists(listsOf(dev));
@@ -520,8 +529,11 @@ $('.brand').addEventListener('click', (e) => {
   e.preventDefault();
   showView('control');
 });
+const cabinetPanel = new CabinetPanel({ onOpenSettings: () => showView('settings') });
+cabinetPanel.loadConfig();
 initSettings(() => {
   S.lists = {};
+  cabinetPanel.loadConfig();
   refresh();
 });
 

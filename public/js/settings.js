@@ -1,5 +1,8 @@
 // Página de Ajustes
 import { $, $$, api, escapeHtml, toast } from './util.js';
+import { CabinetEditor } from './cabinet-editor.js';
+
+let cabinetEditor = null;
 
 const SIDES = [
   ['bottom', 'Base'],
@@ -54,6 +57,7 @@ export async function loadSettings() {
   $('#cfg-orgb-port').value = cfg.openrgb.port;
   $('#cfg-poll').value = cfg.pollSec;
   $('#cfg-msg').textContent = '';
+  await cabinetEditor?.load(cfg);
 }
 
 async function saveSettings(onSaved) {
@@ -75,6 +79,7 @@ async function saveSettings(onSaved) {
     openrgb: { enabled: $('#cfg-orgb-enabled').checked, host: $('#cfg-orgb-host').value.trim(), port: Number($('#cfg-orgb-port').value) },
     pollSec: Number($('#cfg-poll').value),
   };
+  if (cabinetEditor) patch.cabinet = cabinetEditor.value();
   try {
     await api('PUT', '/api/config', patch);
     await loadSettings();
@@ -88,6 +93,7 @@ async function saveSettings(onSaved) {
 }
 
 export function initSettings(onSaved) {
+  cabinetEditor = new CabinetEditor();
   $('#cfg-wled-add').addEventListener('click', () => $('#cfg-wled').append(wledRow()));
   $('#cfg-save').addEventListener('click', () => saveSettings(onSaved));
 }

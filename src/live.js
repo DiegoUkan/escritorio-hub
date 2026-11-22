@@ -14,7 +14,8 @@ export function decodeLiveFrame(buf) {
     pos = 4;
   }
   const n = Math.floor((buf.length - pos) / 3);
-  return { hex: Buffer.from(buf.subarray(pos, pos + n * 3)).toString('hex'), w, h };
+  const bytes = buf.subarray(pos, pos + n * 3);
+  return { hex: Buffer.from(bytes).toString('hex'), bytes: Uint8Array.from(bytes), w, h };
 }
 
 export class LiveStream {
@@ -23,9 +24,14 @@ export class LiveStream {
     this.getHost = getHost;
     this.onState = onState;
     this.clients = new Set();
+    this.watchers = new Set(); // quem usa os quadros dentro do hub (ex.: Ambilight do gabinete)
     this.ws = null;
     this.retryTimer = null;
     this.lastFrame = null;
+  }
+
+  get users() {
+    return this.clients.size + this.watchers.size;
   }
 
   add(res) {
@@ -36,7 +42,17 @@ export class LiveStream {
 
   remove(res) {
     this.clients.delete(res);
-    if (this.clients.size === 0) this.close();
+    if (this.users === 0) this.close();
+  }
+
+  // fn(bytes) a cada quadro; devolve a função que para de assistir
+  watch(fn) {
+    this.watchers.add(fn);
+    if (!this.ws && !this.retryTimer) this.#open();
+    return () => {
+      this.watchers.delete(fn);
+      if (this.users === 0) this.close();
+    };
   }
 
   #broadcast(text) {
@@ -68,10 +84,11 @@ export class LiveStream {
       if (!frame) return;
       this.lastFrame = frame.hex;
       this.#broadcast(`data: ${frame.hex}\n\n`);
+      for (const fn of this.watchers) fn(frame.bytes);
     });
     ws.addEventListener('close', () => {
       if (this.ws === ws) this.ws = null;
-      if (this.clients.size) this.#retry();
+      if (this.users) this.#retry();
     });
     ws.addEventListener('error', () => {
       try {
@@ -84,7 +101,7 @@ export class LiveStream {
     clearTimeout(this.retryTimer);
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
-      if (this.clients.size && !this.ws) this.#open();
+      if (this.users && !this.ws) this.#open();
     }, 3000);
   }
 
@@ -105,6 +122,7 @@ export class LiveStream {
   shutdown() {
     for (const res of this.clients) res.end();
     this.clients.clear();
+    this.watchers.clear();
     this.close();
   }
 }

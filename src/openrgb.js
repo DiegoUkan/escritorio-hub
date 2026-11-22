@@ -12,6 +12,9 @@ export class OpenRGBBridge {
     this.connected = false;
     this.error = '';
     this.busy = false;
+    this.known = [];         // últimos dispositivos vistos (ficam mesmo com o PC desligado)
+    this.seq = 0;            // muda a cada conexão nova (o gabinete reenvia tudo)
+    this.direct = new Set(); // dispositivos já colocados no modo Direct nesta conexão
   }
 
   async #connect(host, port) {
@@ -27,6 +30,8 @@ export class OpenRGBBridge {
     this.client = client;
     this.target = `${host}:${port}`;
     this.connected = true;
+    this.direct.clear();
+    this.seq++;
   }
 
   #drop() {
@@ -50,7 +55,15 @@ export class OpenRGBBridge {
     try {
       if (!this.connected || this.target !== `${host}:${port}`) await this.#connect(host, port);
       const all = await this.client.getAllControllerData();
-      this.devices = all.map((d) => ({ id: d.deviceId, name: d.name, type: d.type, leds: d.leds.length }));
+      this.devices = all.map((d) => ({
+        id: d.deviceId,
+        name: d.name,
+        type: d.type,
+        leds: d.leds.length,
+        hasDirect: d.modes.some((m) => m.name === 'Direct'),
+        zones: d.zones.map((z) => ({ name: z.name, leds: z.ledsCount })),
+      }));
+      if (this.devices.length) this.known = this.devices; // o mapa do gabinete continua com o PC desligado
       this.profiles = await this.client.getProfileList().catch(() => []);
       this.error = '';
     } catch (err) {
@@ -67,20 +80,37 @@ export class OpenRGBBridge {
     return this.client;
   }
 
+  // Modo Direct uma vez por conexão: é nele que o OpenRGB aceita cor por LED
+  async #ensureDirect(client, d) {
+    if (this.direct.has(d.id)) return;
+    this.direct.add(d.id);
+    if (!d.hasDirect) return;
+    try {
+      await client.updateMode(d.id, 'Direct');
+    } catch {
+      // alguns dispositivos não têm modo Direct; tenta pintar mesmo assim
+    }
+  }
+
   // Pinta uma cor sólida em um dispositivo (ou em todos, se deviceId for undefined)
   async setColor([r, g, b], deviceId) {
     const client = this.#requireClient();
     const color = { red: r, green: g, blue: b };
     const targets = deviceId === undefined ? this.devices : this.devices.filter((d) => d.id === deviceId);
     for (const d of targets) {
-      try {
-        await client.updateMode(d.id, 'Direct');
-      } catch {
-        // alguns dispositivos não têm modo Direct; tenta pintar mesmo assim
-      }
+      await this.#ensureDirect(client, d);
       client.updateLeds(d.id, Array(d.leds).fill(color));
     }
     return targets.length;
+  }
+
+  // Cor de cada LED de um dispositivo: colors = [[r,g,b], ...] na ordem do OpenRGB
+  setLeds(deviceId, colors) {
+    const client = this.#requireClient();
+    const d = this.devices.find((x) => x.id === deviceId);
+    if (!d) throw new Error(`dispositivo ${deviceId} não encontrado`);
+    if (!this.direct.has(d.id)) this.#ensureDirect(client, d);
+    client.updateLeds(d.id, colors.map(([red, green, blue]) => ({ red, green, blue })));
   }
 
   loadProfile(name) {

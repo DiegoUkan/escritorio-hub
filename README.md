@@ -10,6 +10,7 @@ Central de controle do escritório, rodando como container no servidor de casa (
 - **Caixa de som:** liga o relé (usermod *Multi Relay* do WLED) quando o PC liga e desliga depois de um tempo sem o PC. Também tem modo manual.
 - **OpenRGB:** conecta no servidor SDK do OpenRGB do PC para listar os dispositivos (RAM, placa-mãe, periféricos), pintar cores e carregar perfis.
 - **Ambilight:** quando o HyperHDR do PC manda as cores da tela para o WLED, o monitor ao vivo mostra "Ambilight" e um botão deixa pausar (o WLED volta ao efeito do hub) e ligar de novo.
+- **Gabinete:** as LEDs do OpenRGB viram LEDs virtuais no fim da fita do WLED (saída DDP para o hub). Elas rodam os mesmos efeitos da moldura, aparecem ao vivo sobre um desenho ou foto do PC, dá para pintar LED a LED pela posição e, no Ambilight, o gabinete copia o lado direito da tela. O mapa diz onde cada LED fica (linha, anel, contorno ou ponto a ponto), com cópias para fans espelhados por hub ou splitter.
 - **Tutorial:** uma aba com tudo o que precisa estar instalado e configurado (OpenRGB, Cloudflare WARP, HyperHDR, som do PC, atualização do hub), com checklist do PC novo, comandos para copiar e links. O conteúdo fica em `public/guide.html`.
 
 A interface fica em `http://IP-DO-SERVIDOR:8090` e funciona no computador e no celular.
@@ -43,6 +44,7 @@ Tudo é feito pela aba **Ajustes** da página:
 | PC | IP fixo do PC gamer e a porta TCP usada para saber se ele está ligado. |
 | Caixa de som | Qual WLED tem o relé, o número do relé e quanto tempo esperar antes de desligar. |
 | OpenRGB | IP do PC e porta do SDK Server (6742). No OpenRGB, o servidor precisa escutar em `0.0.0.0` (não em `127.0.0.1`) na porta 6742, e o firewall do Windows precisa liberar essa porta para a rede local (`192.168.1.0/24`). |
+| Gabinete | Liga as LEDs do PC no WLED, a ordem dos efeitos, o Ambilight no gabinete, a foto e o mapa. **Configurar no WLED** cria a saída virtual DDP (início logo depois da moldura) apontando para o hub, que escuta na porta UDP `4048` (o container usa a rede do host). `HUB_IP` força o IP que o hub passa para o WLED. |
 
 Os favoritos são marcados na estrela de cada efeito ou paleta e ficam salvos no servidor, valendo para qualquer aparelho.
 
@@ -61,6 +63,11 @@ Os favoritos são marcados na estrela de cada efeito ou paleta e ficam salvos no
 | POST | `/api/speaker` | `{ mode: "auto" \| "on" \| "off" }` |
 | POST | `/api/openrgb/color` | `{ color: [r,g,b], device?: id }` |
 | POST | `/api/openrgb/profile` | `{ name }` |
+| GET | `/api/cabinet/live` | prévia ao vivo do gabinete (Server-Sent Events, `rrggbb` por LED física, na ordem do OpenRGB) |
+| POST | `/api/cabinet/paint` | `{ set: { "<índice>": "rrggbb" } }` ou `{ all: "rrggbb" }` (`""` apaga); liga o modo Pintura |
+| POST | `/api/cabinet/identify` | `{ device, zone }`: a zona fica branca e o resto apaga por 3 segundos |
+| POST | `/api/cabinet/setup-wled` | cria (ou confere) a saída virtual DDP no WLED do gabinete, com backup do `cfg.json` na pasta de dados |
+| GET/POST/DELETE | `/api/cabinet/image` | foto do gabinete (`POST` com o corpo da imagem e `?aspect=largura/altura`) |
 
 - `slot` escolhe qual das 3 cores do WLED muda (0 = principal, 1 = fundo, 2 = extra).
 - Ao trocar de efeito (`fx`), o WLED aplica os valores padrão daquele efeito, como na interface dele.
@@ -77,4 +84,4 @@ npm test
 DATA_DIR=./data npm start   # http://localhost:8090
 ```
 
-Para testar sem ESP32, `node test/fake-wled.js 9911` sobe um WLED falso (98 LEDs, com efeitos, paletas e prévia ao vivo). Com `--live` no fim, ele finge que o HyperHDR está mandando a tela. Depois é só cadastrar `127.0.0.1:9911` em **Ajustes**.
+Para testar sem ESP32, `node test/fake-wled.js 9911` sobe um WLED falso (98 LEDs, com efeitos, paletas e prévia ao vivo). Com `--live` no fim, ele finge que o HyperHDR está mandando a tela. Depois é só cadastrar `127.0.0.1:9911` em **Ajustes**. O WLED falso também aceita a saída virtual do gabinete (`/json/cfg`) e manda DDP, e `test/fake-openrgb.js` faz o papel do OpenRGB nos testes.

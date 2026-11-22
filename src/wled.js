@@ -67,6 +67,12 @@ export function buildState(cmd, segIds = [0]) {
 export const SIDE_NAMES = ['Base', 'Direita', 'Topo', 'Esquerda'];
 const FRAME_ORDER = ['bottom', 'right', 'top', 'left'];
 
+// Quantas LEDs a moldura tem (soma dos lados). Depois dela podem vir as LEDs virtuais do gabinete.
+export function frameLength(layout) {
+  if (layout?.type && layout.type !== 'frame') return 0;
+  return FRAME_ORDER.reduce((s, side) => s + Math.max(0, Number(layout?.[side]) || 0), 0);
+}
+
 export function frameSides(layout, total) {
   const out = [];
   let start = 0;
@@ -79,30 +85,90 @@ export function frameSides(layout, total) {
   return out;
 }
 
+// Segmentos da moldura (os que começam antes do fim dela); o resto é o gabinete
+const frameSegs = (segments, len) => (segments ?? []).filter((s) => s.start < len);
+
 // Qual divisão o WLED está usando agora: full, sides ou custom (qualquer outra)
 export function frameModeOf(segments, layout, total) {
-  if (!segments?.length || !total) return 'custom';
-  if (segments.length === 1 && segments[0].start === 0 && segments[0].stop === total) return 'full';
-  const sides = frameSides(layout, total);
-  const same = sides.length === segments.length && sides.every((s, i) => segments[i].start === s.start && segments[i].stop === s.stop);
+  const len = Math.min(frameLength(layout) || total, total || Infinity);
+  const segs = frameSegs(segments, len);
+  if (!segs.length || !len) return 'custom';
+  if (segs.length === 1 && segs[0].start === 0 && segs[0].stop === len) return 'full';
+  const sides = frameSides(layout, len);
+  const same = sides.length === segs.length && sides.every((s, i) => segs[i].start === s.start && segs[i].stop === s.stop);
   return same ? 'sides' : 'custom';
 }
 
 // O que passa do segmento principal para os segmentos novos, para todos os lados ficarem iguais
 const LOOK_KEYS = ['on', 'bri', 'col', 'fx', 'sx', 'ix', 'pal', 'c1', 'c2', 'c3', 'o1', 'o2', 'o3'];
+const lookOf = (seg) => {
+  const look = {};
+  for (const k of LOOK_KEYS) if (seg?.[k] !== undefined) look[k] = structuredClone(seg[k]);
+  return look;
+};
 
 // JSON do WLED que redivide a moldura. current = state.seg do WLED agora.
+// total = LEDs do WLED; se passar da moldura, o resto vira (ou continua) o segmento Gabinete.
 export function frameModeState(mode, layout, total, current = []) {
-  const wanted = mode === 'full' ? [{ name: 'Moldura', start: 0, stop: total }] : frameSides(layout, total);
-  const main = current[0] ?? {};
-  const look = {};
-  for (const k of LOOK_KEYS) if (main[k] !== undefined) look[k] = structuredClone(main[k]);
+  const len = Math.min(frameLength(layout) || total, total);
+  const wanted = mode === 'full' ? [{ name: 'Moldura', start: 0, stop: len }] : frameSides(layout, len);
+  const look = lookOf(current[0]);
   const seg = wanted.map((w, id) => ({ id, start: w.start, stop: w.stop, n: w.name, sel: true, ...(id === 0 ? {} : look) }));
+  if (total > len) {
+    const cab = (current ?? []).find((s) => s.start >= len);
+    seg.push({ id: seg.length, start: len, stop: total, n: CABINET_NAME, sel: true, ...(cab ? lookOf(cab) : look) });
+  }
   // segmentos que sobraram são apagados (no WLED, stop 0 remove o segmento)
   const lastId = current.reduce((m, s, i) => Math.max(m, s.id ?? i), -1);
-  for (let id = wanted.length; id <= lastId; id++) seg.push({ id, stop: 0 });
+  for (let id = seg.length; id <= lastId; id++) seg.push({ id, stop: 0 });
   return { seg };
 }
+
+// ---------- Gabinete: LEDs virtuais depois da moldura ----------
+export const CABINET_NAME = 'Gabinete';
+
+// Segmento do gabinete no WLED (o que cobre as LEDs depois da moldura), ou null
+export function cabinetSegment(segments, start, total) {
+  return (segments ?? []).find((s) => s.start === start && s.stop === total) ?? null;
+}
+
+// JSON que cria (ou acerta) o segmento Gabinete, copiando o visual do segmento principal
+export function cabinetSegmentState(segments, start, total) {
+  const segs = segments ?? [];
+  const existing = segs.find((s) => s.start >= start) ?? null;
+  const id = existing ? existing.id : segs.reduce((m, s) => Math.max(m, s.id), -1) + 1;
+  return { seg: [{ id, start, stop: total, n: CABINET_NAME, sel: true, ...(existing ? {} : lookOf(segs[0])) }] };
+}
+
+// Volta o gabinete a seguir a moldura: tira a pintura (frz) e copia o visual do segmento principal
+export function cabinetFollowState(segments, cabId) {
+  return { seg: [{ id: cabId, frz: false, ...lookOf(segments?.[0]) }] };
+}
+
+// Pintura do gabinete: cores LED a LED (na ordem do segmento) no campo "i" do WLED
+export function cabinetPaintState(cabId, colors) {
+  return { seg: [{ id: cabId, fx: 0, frz: false, i: [0, ...colors] }] };
+}
+
+const NET_TYPES = (t) => t >= 80 && t < 96; // saídas de rede do WLED (DDP, E1.31, Art-Net)
+
+// hw.led do /json/cfg com a saída virtual DDP do gabinete: [start, start + len) mandando para ip
+export function virtualBusConfig(hwLed, start, len, ip) {
+  const octets = String(ip).split('.').map(Number);
+  if (octets.length !== 4 || octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) throw new Error(`IP inválido: ${ip}`);
+  const ins = (hwLed?.ins ?? []).filter((b) => !(NET_TYPES(b.type) && b.start >= start));
+  ins.push({ start, len, pin: octets, order: 0, rev: false, skip: 0, type: 80, ref: false, rgbwm: 0, freq: 0, maxpwr: 0, ledma: 0 });
+  const { total, ...rest } = hwLed ?? {};
+  return { ...rest, ins };
+}
+
+// Saída virtual do gabinete que já existe no WLED, ou null
+export function findVirtualBus(hwLed, start) {
+  return (hwLed?.ins ?? []).find((b) => NET_TYPES(b.type) && b.start === start) ?? null;
+}
+
+export const getConfig = (host) => request(host, '/json/cfg');
+export const setConfig = (host, cfg) => request(host, '/json/cfg', cfg);
 
 // Resumo do estado que a página precisa
 export function summarize(si) {

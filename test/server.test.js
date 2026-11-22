@@ -53,7 +53,7 @@ test('hub controla WLED, caixa de som, listas, favoritos e prévia ao vivo', asy
     pollSec: 1,
   }));
   const port = await freePort();
-  const hub = spawn(process.execPath, ['src/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dataDir }, stdio: 'inherit' });
+  const hub = spawn(process.execPath, ['src/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, CABINET_DDP_PORT: '0' }, stdio: 'inherit' });
   t.after(() => {
     hub.kill();
     wled.close();
