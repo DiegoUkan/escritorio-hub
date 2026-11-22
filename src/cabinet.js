@@ -84,6 +84,7 @@ export class CabinetEngine {
     this.ddpFps = 0;
     this.mold = null;         // { frame, layout, at } prévia ao vivo da moldura
     this.moldAmbi = false;    // moldura mostrando a tela (HyperHDR chegando e lor 0)
+    this.level = 1;           // brilho do WLED (0-1, 0 = desligado), usado na pintura
     this.ident = null;        // { device, zone, until }
     this.current = null;      // quadro atual (ordem física, RGB)
     this.sent = new Map();    // deviceId -> string das cores enviadas
@@ -157,6 +158,11 @@ export class CabinetEngine {
     this.moldAmbi = !!on;
   }
 
+  // Brilho do WLED (para a pintura): on = ligado, bri = 0-255
+  setWledLevel(on, bri) {
+    this.level = on ? Math.min(255, Math.max(0, Number(bri) || 0)) / 255 : 0;
+  }
+
   identify(device, zone, ms = 3000) {
     this.ident = { device, zone, until: Date.now() + ms };
   }
@@ -197,14 +203,16 @@ export class CabinetEngine {
       target.forEach((c, i) => (out[i] = c.map((v, k) => Math.round(prev[i][k] + (v - prev[i][k]) * 0.35))));
       return { frame: out, source: 'ambilight' };
     }
-    const paintNow = this.cfg?.mode === 'paint' && (this.moldAmbi || !this.ddp);
-    if (!paintNow && this.ddp && this.ddp.length >= n * 3) {
+    // Pintura: as cores salvas no hub, com o brilho e o liga/desliga do WLED. Não depende do que o WLED
+    // devolve: quando o HyperHDR começa, o WLED apaga a fita inteira e o segmento congelado fica apagado.
+    if (this.cfg?.mode === 'paint') {
+      const k = this.level;
+      this.leds.forEach((_, i) => (out[i] = rgbOf(this.cfg.paint?.[i]).map((v) => Math.round(v * k))));
+      return { frame: out, source: 'paint' };
+    }
+    if (this.ddp && this.ddp.length >= n * 3) {
       for (let k = 0; k < n; k++) out[this.virt[k]] = [this.ddp[k * 3], this.ddp[k * 3 + 1], this.ddp[k * 3 + 2]];
       return { frame: out, source: 'wled' };
-    }
-    if (this.cfg?.mode === 'paint') {
-      this.leds.forEach((_, i) => (out[i] = rgbOf(this.cfg.paint?.[i])));
-      return { frame: out, source: 'paint' };
     }
     return { frame: null, source: 'none' };
   }

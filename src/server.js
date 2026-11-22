@@ -99,12 +99,17 @@ function cabinetInfo(dev = cabinetWled()) {
 // Moldura no Ambilight: o hub assiste a prévia ao vivo para calcular o gabinete
 let unwatchMoldura = null;
 let watchingId = null;
+let wasAmbi = false;
 function updateCabinetLive(dev) {
   const c = store.get().cabinet;
   if (!c.enabled || dev.id !== c.wled) return;
   const sum = live.wled[dev.id];
   const ambi = !!(sum?.online && sum.live && !sum.lor);
   cabinet.setMolduraAmbi(ambi);
+  cabinet.setWledLevel(!!sum?.on, sum?.bri ?? 0);
+  // o HyperHDR parou (ou foi pausado): o WLED tinha apagado a fita, então a pintura volta para o segmento
+  if (wasAmbi && !ambi && c.mode === 'paint') pushPaint();
+  wasAmbi = ambi;
   const want = ambi && c.ambilight && dev.layout?.type === 'frame';
   if (want && watchingId !== dev.id) {
     unwatchMoldura?.();
@@ -535,6 +540,13 @@ async function sendToWled(dev, cmd, quick = false) {
   if (cab) segIds = segIds.filter((id) => id !== cab.id);
   const state = wled.buildState(cmd, segIds.length ? segIds : [0]);
   await wled.setState(dev.host, state);
+  // brilho e liga/desliga valem na hora para a pintura do gabinete (sem esperar o próximo ciclo)
+  const sum = live.wled[dev.id];
+  if (sum && (state.on !== undefined || state.bri !== undefined)) {
+    if (state.on !== undefined) sum.on = state.on;
+    if (state.bri !== undefined) sum.bri = state.bri;
+    updateCabinetLive(dev);
+  }
   if (!quick) await pollWled(dev);
 }
 

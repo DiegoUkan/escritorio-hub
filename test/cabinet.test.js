@@ -234,4 +234,11 @@ test('CabinetEngine: DDP vira cor por LED física, só manda o que mudou e cede 
   engine.tick();
   assert.equal(engine.source, 'paint');
   assert.deepEqual(sent.at(-1)[1].slice(0, 2), [[0, 255, 0], [0, 0, 255]]);
+  // a pintura segue o brilho e o liga/desliga do WLED (sem depender do DDP)
+  engine.setWledLevel(true, 51);
+  engine.tick();
+  assert.deepEqual(sent.at(-1)[1].slice(0, 2), [[0, 51, 0], [0, 0, 51]]);
+  engine.setWledLevel(false, 255);
+  engine.tick();
+  assert.deepEqual(sent.at(-1)[1].slice(0, 2), [[0, 0, 0], [0, 0, 0]]);
 });
