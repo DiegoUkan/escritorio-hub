@@ -172,19 +172,21 @@ export function startFakeWled({ leds = 98, port = 0, ddpPort = 4048 } = {}) {
     });
   });
 
+  // Como o WLED: a prévia vai para UM cliente só (o último que pediu lv:true); qualquer lv:false corta
   const wss = new WebSocketServer({ server, path: '/ws' });
+  let liveClient = null;
+  const liveTimer = setInterval(() => {
+    if (liveClient?.readyState === 1) liveClient.send(frame((Date.now() - t0) / 1000));
+  }, 40);
   wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ state, info: info() }));
-    let timer = null;
-    const t0 = Date.now();
     ws.on('message', (m) => {
       const msg = JSON.parse(m.toString());
-      if ('lv' in msg) {
-        clearInterval(timer);
-        timer = msg.lv ? setInterval(() => ws.send(frame((Date.now() - t0) / 1000)), 40) : null;
-      }
+      if ('lv' in msg) liveClient = msg.lv ? ws : null;
     });
-    ws.on('close', () => clearInterval(timer));
+    ws.on('close', () => {
+      if (liveClient === ws) liveClient = null;
+    });
   });
 
   return new Promise((resolve) =>
@@ -208,6 +210,7 @@ export function startFakeWled({ leds = 98, port = 0, ddpPort = 4048 } = {}) {
         },
         close: () => {
           clearInterval(ddpTimer);
+          clearInterval(liveTimer);
           udp.close();
           for (const c of wss.clients) c.terminate();
           wss.close();

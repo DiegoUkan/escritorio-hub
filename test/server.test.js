@@ -53,7 +53,7 @@ test('hub controla WLED, caixa de som, listas, favoritos e prévia ao vivo', asy
     pollSec: 1,
   }));
   const port = await freePort();
-  const hub = spawn(process.execPath, ['src/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, CABINET_DDP_PORT: '0' }, stdio: 'inherit' });
+  const hub = spawn(process.execPath, ['src/server.js'], { env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, CABINET_DDP_PORT: '0', LIVE_STALE_MS: '800' }, stdio: 'inherit' });
   t.after(() => {
     hub.kill();
     wled.close();
@@ -153,6 +153,21 @@ test('hub controla WLED, caixa de som, listas, favoritos e prévia ao vivo', asy
   const sse = await firstSseData(`${base}/api/wled/monitor/live`);
   assert.match(sse.type, /text\/event-stream/);
   assert.equal(sse.data.length, 98 * 6);
+
+  // outro cliente (ex.: a interface do WLED) pega a prévia e depois manda lv:false: o hub pede de novo
+  const frames = { n: 0 };
+  const req = http.get(`${base}/api/wled/monitor/live`, (res) => res.on('data', (c) => (frames.n += (String(c).match(/^data: /gm) || []).length)));
+  t.after(() => req.destroy());
+  await waitFor(() => frames.n > 3);
+  const thief = new WebSocket(`ws://127.0.0.1:${wled.port}/ws`);
+  await new Promise((r) => thief.addEventListener('open', r));
+  thief.send(JSON.stringify({ lv: true }));
+  await new Promise((r) => setTimeout(r, 300));
+  thief.send(JSON.stringify({ lv: false }));
+  thief.close();
+  await new Promise((r) => setTimeout(r, 200));
+  const before = frames.n;
+  await waitFor(() => frames.n > before + 5, 5000);
 
   // página e arquivos estáticos
   const html = await fetch(base + '/').then((r) => r.text());

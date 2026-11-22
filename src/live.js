@@ -18,6 +18,8 @@ export function decodeLiveFrame(buf) {
   return { hex: Buffer.from(bytes).toString('hex'), bytes: Uint8Array.from(bytes), w, h };
 }
 
+const LIVE_STALE_MS = Number(process.env.LIVE_STALE_MS || 2500);
+
 export class LiveStream {
   // getHost: () => host atual do WLED; onState: recebe {state, info} quando o WLED avisa mudanças
   constructor(getHost, onState) {
@@ -71,7 +73,26 @@ export class LiveStream {
     }
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
-    ws.addEventListener('open', () => ws.send(JSON.stringify({ lv: true })));
+    // O WLED manda a prévia para UM cliente só: o último que pediu {"lv":true}, e qualquer {"lv":false}
+    // (de outra página ou da interface do próprio WLED) corta. Sem quadros por um tempo, pede de novo.
+    let lastAt = 0;
+    let watchdog = null;
+    const ask = () => {
+      try {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ lv: true }));
+      } catch {}
+    };
+    ws.addEventListener('open', () => {
+      lastAt = Date.now();
+      ask();
+      watchdog = setInterval(() => {
+        if (Date.now() - lastAt > LIVE_STALE_MS) {
+          lastAt = Date.now();
+          ask();
+        }
+      }, 1000);
+      watchdog.unref?.();
+    });
     ws.addEventListener('message', (ev) => {
       if (typeof ev.data === 'string') {
         try {
@@ -82,11 +103,13 @@ export class LiveStream {
       }
       const frame = decodeLiveFrame(new Uint8Array(ev.data));
       if (!frame) return;
+      lastAt = Date.now();
       this.lastFrame = frame.hex;
       this.#broadcast(`data: ${frame.hex}\n\n`);
       for (const fn of this.watchers) fn(frame.bytes);
     });
     ws.addEventListener('close', () => {
+      clearInterval(watchdog);
       if (this.ws === ws) this.ws = null;
       if (this.users) this.#retry();
     });
@@ -112,8 +135,9 @@ export class LiveStream {
     this.ws = null;
     this.lastFrame = null;
     if (!ws) return;
+    // sem {"lv":false}: ele cortaria a prévia de quem estiver usando agora (ex.: interface do WLED).
+    // Ao desconectar, o WLED já para de mandar para este cliente.
     try {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ lv: false }));
       ws.close();
     } catch {}
   }
